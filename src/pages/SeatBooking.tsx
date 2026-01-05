@@ -56,10 +56,12 @@ const SeatBooking = () => {
   };
 
   const handleConfirm = () => {
+    console.log('handleConfirm called, seats:', selectedSeats.length);
     if (selectedSeats.length === 0) {
       toast.error('Please select at least one seat');
       return;
     }
+    console.log('Setting showPassengerForm to true');
     setShowPassengerForm(true);
   };
 
