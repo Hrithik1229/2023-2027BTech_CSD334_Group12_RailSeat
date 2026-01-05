@@ -123,23 +123,31 @@
 
 @layer components {
   .seat-base {
-    @apply w-10 h-10 rounded-md flex items-center justify-center text-xs font-medium cursor-pointer transition-all duration-200 border-2;
+    @apply w-11 h-11 rounded-lg flex items-center justify-center text-xs font-semibold cursor-pointer transition-all duration-200 border-2 shadow-sm;
   }
 
   .seat-available {
-    @apply bg-emerald-100 border-emerald-400 text-emerald-700 hover:bg-emerald-200 hover:border-emerald-500 hover:scale-105;
+    background: linear-gradient(145deg, hsl(142 70% 92%), hsl(142 60% 85%));
+    @apply border-emerald-400/80 text-emerald-700 hover:border-emerald-500 hover:scale-110 hover:shadow-md hover:shadow-emerald-200;
   }
 
   .seat-selected {
-    @apply bg-blue-500 border-blue-600 text-white shadow-lg shadow-blue-500/30 scale-105;
+    background: linear-gradient(145deg, hsl(210 90% 55%), hsl(210 85% 45%));
+    @apply border-blue-500 text-white shadow-lg shadow-blue-400/40 scale-110 ring-2 ring-blue-300/50 ring-offset-1;
   }
 
   .seat-booked {
-    @apply bg-gray-200 border-gray-300 text-gray-500 cursor-not-allowed opacity-60;
+    background: linear-gradient(145deg, hsl(215 10% 88%), hsl(215 10% 82%));
+    @apply border-gray-300 text-gray-400 cursor-not-allowed;
   }
 
   .seat-locked {
-    @apply bg-amber-100 border-amber-400 text-amber-700 cursor-not-allowed;
+    background: linear-gradient(145deg, hsl(38 90% 90%), hsl(38 80% 82%));
+    @apply border-amber-400/80 text-amber-700 cursor-not-allowed;
+  }
+
+  .seat-berth-label {
+    @apply text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70;
   }
 
   .coach-tab {
