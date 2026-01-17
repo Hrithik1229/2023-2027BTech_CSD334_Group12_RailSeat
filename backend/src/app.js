@@ -1,0 +1,23 @@
+import cors from "cors";
+import express from "express";
+import bookingRoutes from "./routes/booking.routes.js";
+import seatRoutes from "./routes/seat.routes.js";
+import trainRoutes from "./routes/train.routes.js";
+import userRoutes from "./routes/user.routes.js";
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+// Routes
+app.use("/api/bookings", bookingRoutes);
+app.use("/api/seats", seatRoutes);
+app.use("/api/trains", trainRoutes);
+app.use("/api/users", userRoutes);
+
+app.get("/", (req, res) => {
+
+});
+
+export default app;
