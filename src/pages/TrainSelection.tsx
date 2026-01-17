@@ -1,24 +1,48 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { trains, stations } from '@/data/coachLayouts';
-import { Train, CalendarDays, MapPin, Clock, ArrowRight, ArrowLeft, Users, Wifi, UtensilsCrossed, Armchair } from 'lucide-react';
-import { format } from 'date-fns';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { AnimatePresence, motion } from 'framer-motion';
+import { ArrowLeft, ArrowRight, CalendarDays, Clock, MapPin, MapPinOff, Train as TrainIcon, UtensilsCrossed, Wifi } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+
+interface TrainData {
+  id: string;
+  number: string;
+  name: string;
+  coaches: string[];
+  departureTime: string;
+  arrivalTime: string;
+  duration: string;
+  sourceStation: string;
+  destinationStation: string;
+}
+
+interface TrainStop {
+  stop_id: number;
+  train_id: number;
+  station_id: number;
+  stop_order: number;
+  arrival_time: string | null;
+  departure_time: string | null;
+  station: {
+    station_name: string;
+    station_code: string;
+  };
+}
 
 const TrainSelection = () => {
   const navigate = useNavigate();
@@ -26,14 +50,98 @@ const TrainSelection = () => {
   const [destination, setDestination] = useState<string>('');
   const [date, setDate] = useState<Date>();
   const [selectedTrain, setSelectedTrain] = useState<string>('');
+  
+  const [trains, setTrains] = useState<TrainData[]>([]);
+  const [stations, setStations] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // New state for intermediate stops
+  const [trainStops, setTrainStops] = useState<TrainStop[]>([]);
+  const [boardingStop, setBoardingStop] = useState<string>('');
+  const [droppingStop, setDroppingStop] = useState<string>('');
+  const [stopsLoading, setStopsLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchTrains = async () => {
+      try {
+        const response = await fetch('http://localhost:3000/api/trains');
+        const data = await response.json();
+        
+        const mappedTrains: TrainData[] = data.map((t: any) => ({
+          id: t.train_id.toString(),
+          number: t.train_number,
+          name: t.train_name,
+          coaches: t.coaches ? t.coaches.map((c: any) => c.coach_number) : [],
+          departureTime: t.departure_time.substring(0, 5),
+          arrivalTime: t.arrival_time.substring(0, 5),
+          duration: t.duration,
+          sourceStation: t.source_station,
+          destinationStation: t.destination_station
+        }));
+
+        setTrains(mappedTrains);
+
+        // Extract unique stations
+        const uniqueStations = Array.from(new Set(mappedTrains.flatMap(t => [t.sourceStation, t.destinationStation])));
+        setStations(uniqueStations);
+      } catch (error) {
+        console.error('Failed to fetch trains:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTrains();
+  }, []);
+
+  useEffect(() => {
+    const fetchStops = async () => {
+      if (!selectedTrain) {
+        setTrainStops([]);
+        setBoardingStop('');
+        setDroppingStop('');
+        return;
+      }
+
+      setStopsLoading(true);
+      try {
+        const response = await fetch(`http://localhost:3000/api/trains/${selectedTrain}/stops`);
+        const data = await response.json();
+        setTrainStops(data);
+        
+        // Default selection logic: 
+        // Try to match current source/dest if they exist in stops, else picking first and last
+        const selectedTrainObj = trains.find(t => t.id === selectedTrain);
+        if (selectedTrainObj) {
+            // Find connection to global source/dest if possible, else default to train source/dest
+             const startStop = data.find((s: TrainStop) => s.station.station_name === source) || data[0];
+             const endStop = data.find((s: TrainStop) => s.station.station_name === destination) || data[data.length - 1];
+             
+             if(startStop) setBoardingStop(startStop.station.station_name);
+             if(endStop) setDroppingStop(endStop.station.station_name);
+        }
+
+      } catch (error) {
+        console.error('Failed to fetch stops:', error);
+      } finally {
+        setStopsLoading(false);
+      }
+    };
+
+    fetchStops();
+  }, [selectedTrain]); // Removed source/dest dependency to avoid resetting when user customizes
 
   const handleSearch = () => {
-    if (source && destination && date && selectedTrain) {
+    const finalSource = boardingStop || source;
+    const finalDest = droppingStop || destination;
+    
+    if (finalSource && finalDest && date && selectedTrain) {
       navigate('/seats', { 
         state: { 
-          source, 
-          destination, 
+          source: finalSource, 
+          destination: finalDest, 
           date: format(date, 'PPP'),
+          isoDate: format(date, 'yyyy-MM-dd'),
           trainId: selectedTrain 
         } 
       });
@@ -41,180 +149,407 @@ const TrainSelection = () => {
   };
 
   const selectedTrainData = trains.find(t => t.id === selectedTrain);
-  const isFormComplete = source && destination && date && selectedTrain;
+  
+  // Validation Logic
+  const getStopOrder = (stationName: string) => trainStops.find(s => s.station.station_name === stationName)?.stop_order || -1;
+  const boardingOrder = getStopOrder(boardingStop);
+  const droppingOrder = getStopOrder(droppingStop);
+  const isValidRoute = boardingStop && droppingStop && boardingOrder < droppingOrder;
+  
+  const isFormComplete = selectedTrain 
+    ? (isValidRoute && !!date) 
+    : (source && destination && date && selectedTrain);
+
+  // Filter trains for display based on selection (optional but good UX)
+  const displayTrains = trains.filter(t => 
+    (!source || t.sourceStation === source) && 
+    (!destination || t.destinationStation === destination)
+  );
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-100">
+    <div className="min-h-screen bg-slate-50 relative selection:bg-blue-100 selection:text-blue-900">
+      {/* Background Decor */}
+      <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-blue-600 to-slate-50 opacity-10"></div>
+          <div className="absolute -top-[20%] -right-[10%] w-[50%] h-[50%] rounded-full bg-blue-400/20 blur-3xl"></div>
+          <div className="absolute top-[20%] -left-[10%] w-[40%] h-[40%] rounded-full bg-indigo-400/20 blur-3xl"></div>
+      </div>
+
       {/* Header */}
-      <header className="bg-white/70 backdrop-blur-lg border-b border-slate-200/50 sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+      <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/60 sticky top-0 z-50 supports-[backdrop-filter]:bg-white/60">
+        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <button 
             onClick={() => navigate('/')}
-            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+            className="flex items-center gap-3 group"
           >
-            <div className="p-2.5 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl shadow-lg shadow-blue-500/25">
-              <Train className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-display font-bold text-xl bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+            <img src="/logo (2).png" alt="RailSeat Logo" className="h-12 w-auto object-contain group-hover:scale-110 transition-transform duration-200" />
+            <span className="font-display font-bold text-xl text-slate-800 tracking-tight">
               RailSeat
             </span>
           </button>
           <Button 
             variant="ghost" 
             onClick={() => navigate('/')}
-            className="text-slate-500 hover:text-slate-800"
+            className="text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 rounded-full px-5"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
+            Back to Home
           </Button>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 max-w-6xl">
+      <main className="container mx-auto px-4 py-8 max-w-7xl relative z-10">
         {/* Page Header */}
         <motion.div 
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-10"
+          className="text-center mb-12"
         >
-          <h1 className="font-display text-4xl md:text-5xl font-bold text-slate-800 mb-3">
-            Where to next?
+          <h1 className="font-display text-4xl md:text-5xl font-bold text-slate-900 mb-4 tracking-tight">
+            Begin your <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">journey</span>
           </h1>
-          <p className="text-slate-500 text-lg">
-            Find and book your perfect train journey
+          <p className="text-slate-500 text-lg max-w-2xl mx-auto">
+            Select a train and customize your boarding points to get started
           </p>
         </motion.div>
 
-        <div className="grid lg:grid-cols-5 gap-8">
-          {/* Left - Search Form */}
+        <div className="grid lg:grid-cols-12 gap-8">
+          {/* Left - Search Form (Sticky) */}
           <motion.div 
-            initial={{ opacity: 0, x: -30 }}
+            initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.1 }}
-            className="lg:col-span-2"
+            className="lg:col-span-4 lg:sticky lg:top-28 h-fit"
           >
-            <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 p-6 md:p-8 border border-slate-100">
-              <h2 className="font-display font-semibold text-xl text-slate-800 mb-6">
-                Journey Details
-              </h2>
+            <div className="bg-white/70 backdrop-blur-xl rounded-3xl shadow-xl shadow-slate-200/40 border border-white/50 p-6 md:p-8 hover:shadow-2xl hover:shadow-blue-900/5 transition-shadow duration-300">
+              <AnimatePresence mode="wait">
+              {selectedTrain && trainStops.length > 0 ? (
+                 <motion.div
+                    key="route-selector"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="space-y-6"
+                 >
+                    <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                        <h2 className="font-display font-bold text-xl text-slate-800">
+                            Your Route
+                        </h2>
+                        <Button variant="ghost" size="sm" onClick={() => setSelectedTrain('')} className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50">
+                           Change
+                        </Button>
+                    </div>
+                    
+                    <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50/50 rounded-2xl border border-blue-100/50">
+                        <div className="flex items-start justify-between">
+                            <div>
+                                <p className="font-bold text-slate-900 text-lg">{selectedTrainData?.name}</p>
+                                <p className="text-sm text-slate-500 font-medium">#{selectedTrainData?.number}</p>
+                            </div>
+                            <TrainIcon className="w-10 h-10 text-blue-200 opacity-50" />
+                        </div>
+                    </div>
 
-              <div className="space-y-5">
-                {/* From */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-500 flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/50" />
-                    Departure Station
-                  </label>
-                  <Select value={source} onValueChange={setSource}>
-                    <SelectTrigger className={cn(
-                      "h-14 bg-slate-50 border-0 text-base rounded-xl transition-all",
-                      source && "ring-2 ring-emerald-500/30 bg-emerald-50/50"
-                    )}>
-                      <div className="flex items-center gap-3">
-                        <MapPin className={cn("w-5 h-5", source ? "text-emerald-600" : "text-slate-400")} />
-                        <SelectValue placeholder="Select station" />
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {stations.map((station) => (
-                        <SelectItem key={station} value={station} disabled={station === destination}>
-                          {station}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                    <div className="space-y-4">
+                        {/* Boarding Point */}
+                        <div className="space-y-2 group">
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 px-1">
+                                <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+                                Boarding At
+                            </label>
+                            <Select value={boardingStop} onValueChange={setBoardingStop}>
+                                <SelectTrigger className="h-14 bg-white border-slate-200 rounded-xl hover:border-blue-300 focus:ring-4 focus:ring-blue-100 transition-all shadow-sm">
+                                     <SelectValue placeholder="Select boarding point" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-[300px]">
+                                    {trainStops.map((stop) => (
+                                        <SelectItem 
+                                            key={stop.stop_id} 
+                                            value={stop.station.station_name}
+                                            disabled={stop.stop_order >= (droppingOrder > -1 ? droppingOrder : 999)}
+                                            className="focus:bg-blue-50 p-3"
+                                        >
+                                            <div className="flex justify-between w-full gap-8 items-center">
+                                                <span className="font-medium">{stop.station.station_name}</span>
+                                                <span className="text-slate-400 text-xs font-mono bg-slate-100 px-2 py-1 rounded">{stop.departure_time?.substring(0,5)}</span>
+                                            </div>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        
+                        <div className="flex pl-6 my-1">
+                            <div className="h-8 w-0.5 bg-gradient-to-b from-emerald-500/50 to-rose-500/50" />
+                        </div>
 
-                {/* Connector Line */}
-                <div className="flex items-center justify-center">
-                  <div className="w-0.5 h-6 bg-gradient-to-b from-emerald-500 to-rose-500 rounded-full" />
-                </div>
+                         {/* Dropping Point */}
+                         <div className="space-y-2 group">
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 px-1">
+                                <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]" />
+                                Dropping At
+                            </label>
+                            <Select value={droppingStop} onValueChange={setDroppingStop}>
+                                <SelectTrigger className="h-14 bg-white border-slate-200 rounded-xl hover:border-blue-300 focus:ring-4 focus:ring-blue-100 transition-all shadow-sm">
+                                     <SelectValue placeholder="Select destination" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-[300px]">
+                                    {trainStops.map((stop) => (
+                                        <SelectItem 
+                                            key={stop.stop_id} 
+                                            value={stop.station.station_name}
+                                            disabled={stop.stop_order <= boardingOrder}
+                                            className="focus:bg-blue-50 p-3"
+                                        >
+                                             <div className="flex justify-between w-full gap-8 items-center">
+                                                <span className="font-medium">{stop.station.station_name}</span>
+                                                <span className="text-slate-400 text-xs font-mono bg-slate-100 px-2 py-1 rounded">{stop.arrival_time?.substring(0,5)}</span>
+                                            </div>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
 
-                {/* To */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-500 flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-rose-500 shadow-lg shadow-rose-500/50" />
-                    Arrival Station
-                  </label>
-                  <Select value={destination} onValueChange={setDestination}>
-                    <SelectTrigger className={cn(
-                      "h-14 bg-slate-50 border-0 text-base rounded-xl transition-all",
-                      destination && "ring-2 ring-rose-500/30 bg-rose-50/50"
-                    )}>
-                      <div className="flex items-center gap-3">
-                        <MapPin className={cn("w-5 h-5", destination ? "text-rose-600" : "text-slate-400")} />
-                        <SelectValue placeholder="Select station" />
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {stations.map((station) => (
-                        <SelectItem key={station} value={station} disabled={station === source}>
-                          {station}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                    {isValidRoute && (
+                       <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between shadow-inner">
+                          <div className="text-center">
+                             <p className="text-slate-400 text-[10px] uppercase font-bold tracking-widest mb-1">Depart</p>
+                             <p className="font-bold text-xl text-slate-800 font-mono">
+                                {trainStops.find(s => s.station.station_name === boardingStop)?.departure_time?.substring(0,5)}
+                             </p>
+                          </div>
+                          <div className="flex flex-col items-center px-4 flex-1">
+                              <p className="text-xs text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full mb-2">
+                                {(() => {
+                                   const start = trainStops.find(s => s.station.station_name === boardingStop)?.departure_time;
+                                   const end = trainStops.find(s => s.station.station_name === droppingStop)?.arrival_time;
+                                   if (!start || !end) return "--";
+                                   const [sh, sm] = start.split(':').map(Number);
+                                   const [eh, em] = end.split(':').map(Number);
+                                   let mins = (eh * 60 + em) - (sh * 60 + sm);
+                                   if (mins < 0) mins += 24 * 60; 
+                                   const h = Math.floor(mins / 60);
+                                   const m = mins % 60;
+                                   return `${h}h ${m}m`;
+                                })()}
+                              </p>
+                              <div className="w-full h-0.5 bg-slate-200 rounded-full relative">
+                                  <div className="absolute top-1/2 left-0 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                                  <div className="absolute top-1/2 right-0 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                              </div>
+                          </div>
+                          <div className="text-center">
+                             <p className="text-slate-400 text-[10px] uppercase font-bold tracking-widest mb-1">Arrive</p>
+                             <p className="font-bold text-xl text-slate-800 font-mono">
+                                {trainStops.find(s => s.station.station_name === droppingStop)?.arrival_time?.substring(0,5)}
+                             </p>
+                          </div>
+                       </div>
+                    )}
 
-                {/* Date */}
-                <div className="space-y-2 pt-2">
-                  <label className="text-sm font-medium text-slate-500 flex items-center gap-2">
-                    <CalendarDays className="w-4 h-4" />
-                    Travel Date
-                  </label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full h-14 justify-start text-left font-normal bg-slate-50 border-0 text-base rounded-xl transition-all",
-                          !date && "text-slate-400",
-                          date && "ring-2 ring-blue-500/30 bg-blue-50/50"
-                        )}
-                      >
-                        <CalendarDays className={cn("mr-3 h-5 w-5", date ? "text-blue-600" : "text-slate-400")} />
-                        {date ? format(date, "EEEE, MMMM d, yyyy") : "Select date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={date}
-                        onSelect={setDate}
-                        disabled={(date) => date < new Date()}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
+                    {!isValidRoute && (
+                         <div className="p-4 bg-red-50/50 border border-red-100 text-red-600 text-sm font-medium rounded-xl flex gap-3 items-center">
+                             <div className="p-1 bg-red-100 rounded-full">
+                                <MapPinOff className="w-4 h-4" />
+                             </div>
+                             Invalid route selected
+                         </div>
+                    )}
+                    
+                     {/* Date Selection for Booking */}
+                     <div className="space-y-2 pt-2">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 px-1">
+                            <CalendarDays className="w-4 h-4" />
+                            Travel Date
+                        </label>
+                        <Popover>
+                        <PopoverTrigger asChild>
+                            <Button
+                            variant="outline"
+                            className={cn(
+                                "w-full h-14 justify-start text-left font-normal bg-white border-slate-200 text-base rounded-xl transition-all shadow-sm hover:border-blue-300",
+                                !date && "text-slate-400",
+                                date && "ring-2 ring-blue-500/10 border-blue-500/50"
+                            )}
+                            >
+                            <CalendarDays className={cn("mr-3 h-5 w-5", date ? "text-blue-600" : "text-slate-300")} />
+                            {date ? format(date, "EEEE, MMMM d, yyyy") : "Select travel date"}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 rounded-xl shadow-xl border-slate-100" align="start">
+                            <Calendar
+                            mode="single"
+                            selected={date}
+                            onSelect={setDate}
+                            disabled={(date) => date < new Date()}
+                            initialFocus
+                            className="p-3"
+                            />
+                        </PopoverContent>
+                        </Popover>
+                    </div>
 
-                {/* Train */}
-                <div className="space-y-2 pt-2">
-                  <label className="text-sm font-medium text-slate-500 flex items-center gap-2">
-                    <Train className="w-4 h-4" />
-                    Select Train
-                  </label>
-                  <Select value={selectedTrain} onValueChange={setSelectedTrain}>
-                    <SelectTrigger className={cn(
-                      "h-14 bg-slate-50 border-0 text-base rounded-xl transition-all",
-                      selectedTrain && "ring-2 ring-blue-500/30 bg-blue-50/50"
-                    )}>
-                      <SelectValue placeholder="Choose your train" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {trains.map((train) => (
-                        <SelectItem key={train.id} value={train.id}>
-                          <span className="font-medium">{train.number}</span>
-                          <span className="text-slate-400 mx-2">•</span>
-                          <span>{train.name}</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+                    {/* Timeline Visualization */}
+                    <div className="mt-8 pt-6 border-t border-slate-100">
+                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-6 px-1">Route Stops</h3>
+                        <div className="relative pl-4 space-y-0 before:absolute before:left-[19px] before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-100">
+                            {trainStops.map((stop, i) => {
+                                const isBoarding = stop.station.station_name === boardingStop;
+                                const isDropping = stop.station.station_name === droppingStop;
+                                const isInRange = stop.stop_order >= boardingOrder && stop.stop_order <= droppingOrder;
+                                
+                                return (
+                                <div key={stop.stop_id} className="relative z-10 flex items-start group pb-6 last:pb-0">
+                                    <div className={cn(
+                                        "w-2.5 h-2.5 rounded-full border-2 transition-all duration-300 flex-shrink-0 mt-1.5 bg-white",
+                                        isBoarding ? "border-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.2)] scale-110" :
+                                        isDropping ? "border-rose-500 shadow-[0_0_0_4px_rgba(244,63,94,0.2)] scale-110" :
+                                        isInRange ? "border-blue-400" : "border-slate-200"
+                                    )} />
+                                    <div className={cn("ml-4 text-sm transition-colors duration-300 -mt-0.5", isInRange ? "text-slate-800 font-medium" : "text-slate-400")}>
+                                        {stop.station.station_name}
+                                    </div>
+                                </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+                 </motion.div>
+              ) : (
+                <motion.div
+                  key="search-form"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <h2 className="font-display font-bold text-2xl text-slate-800 mb-6 tracking-tight">
+                    Find Trains
+                  </h2>
 
-              {/* Search Button */}
+                  <div className="space-y-6">
+                    {/* From */}
+                    <div className="space-y-2 group">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 px-1">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+                        From Station
+                      </label>
+                      <Select value={source} onValueChange={setSource}>
+                        <SelectTrigger className={cn(
+                          "h-16 bg-white border-slate-200 text-base rounded-2xl transition-all shadow-sm hover:border-emerald-300 hover:shadow-emerald-500/5",
+                          source && "ring-2 ring-emerald-500/10 border-emerald-500/50"
+                        )}>
+                          <div className="flex items-center gap-4 px-1">
+                            <div className={cn("p-2 rounded-lg transition-colors", source ? "bg-emerald-50" : "bg-slate-50")}>
+                                <MapPin className={cn("w-5 h-5", source ? "text-emerald-600" : "text-slate-400")} />
+                            </div>
+                            <SelectValue placeholder="Departing from" />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[300px]">
+                          {stations.map((station) => (
+                            <SelectItem key={station} value={station} disabled={station === destination} className="py-3 cursor-pointer focus:bg-emerald-50">
+                              {station}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Connector */}
+                    <div className="flex justify-center -my-2 relative z-10">
+                         <div className="bg-white p-1.5 rounded-full border border-slate-100 shadow-sm text-slate-400">
+                             <div className="bg-slate-50 w-6 h-6 rounded-full flex items-center justify-center">
+                                 <div className="w-1 h-1 bg-slate-300 rounded-full mt-0.5"></div>
+                                 <div className="w-1 h-1 bg-slate-300 rounded-full mb-0.5 -ml-1"></div>
+                             </div>
+                         </div>
+                    </div>
+
+                    {/* To */}
+                    <div className="space-y-2 group">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 px-1">
+                        <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]" />
+                        To Station
+                      </label>
+                      <Select value={destination} onValueChange={setDestination}>
+                        <SelectTrigger className={cn(
+                          "h-16 bg-white border-slate-200 text-base rounded-2xl transition-all shadow-sm hover:border-rose-300 hover:shadow-rose-500/5",
+                          destination && "ring-2 ring-rose-500/10 border-rose-500/50"
+                        )}>
+                          <div className="flex items-center gap-4 px-1">
+                             <div className={cn("p-2 rounded-lg transition-colors", destination ? "bg-rose-50" : "bg-slate-50")}>
+                                <MapPin className={cn("w-5 h-5", destination ? "text-rose-600" : "text-slate-400")} />
+                             </div>
+                            <SelectValue placeholder="Going to" />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[300px]">
+                          {stations.map((station) => (
+                            <SelectItem key={station} value={station} disabled={station === source} className="py-3 cursor-pointer focus:bg-rose-50">
+                              {station}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Date */}
+                    <div className="space-y-2 pt-2">
+                       <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 px-1">
+                        <CalendarDays className="w-4 h-4" />
+                        Travel Date
+                      </label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full h-16 justify-start text-left font-normal bg-white border-slate-200 text-base rounded-2xl transition-all shadow-sm hover:border-blue-300",
+                              !date && "text-slate-400",
+                              date && "ring-2 ring-blue-500/10 border-blue-500/50"
+                            )}
+                          >
+                            <div className="flex items-center gap-4 px-1">
+                                <div className={cn("p-2 rounded-lg transition-colors", date ? "bg-blue-50" : "bg-slate-50")}>
+                                    <CalendarDays className={cn("w-5 h-5", date ? "text-blue-600" : "text-slate-400")} />
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className={cn(date ? "text-slate-900 font-medium" : "text-slate-400")}>
+                                        {date ? format(date, "MMMM d, yyyy") : "Select a date"}
+                                    </span>
+                                    {date && <span className="text-xs text-slate-500 leading-none">{format(date, "EEEE")}</span>}
+                                </div>
+                            </div>
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 rounded-2xl shadow-xl border-slate-100" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={date}
+                            onSelect={setDate}
+                            disabled={(date) => date < new Date()}
+                            initialFocus
+                            className="p-4"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+              </AnimatePresence>
+
+              {/* Search/Proceed Button */}
               <motion.div 
                 className="mt-8"
                 whileHover={{ scale: 1.02 }}
@@ -225,134 +560,161 @@ const TrainSelection = () => {
                   disabled={!isFormComplete}
                   size="lg"
                   className={cn(
-                    "w-full h-14 text-base font-semibold rounded-xl transition-all duration-300",
+                    "w-full h-16 text-lg font-bold rounded-2xl transition-all duration-300 relative overflow-hidden group",
                     isFormComplete 
-                      ? "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg shadow-blue-500/30" 
-                      : "bg-slate-200 text-slate-500"
+                      ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-xl shadow-blue-500/25" 
+                      : "bg-slate-100 text-slate-400"
                   )}
                 >
-                  Search Seats
-                  <ArrowRight className="w-5 h-5 ml-2" />
+                  <span className="relative z-10 flex items-center justify-center gap-2">
+                      {selectedTrain ? "Proceed to Seats" : "Show Available Trains"}
+                      <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </span>
+                  {isFormComplete && (
+                      <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                  )}
                 </Button>
               </motion.div>
             </div>
           </motion.div>
 
-          {/* Right - Train Cards */}
+          {/* Right - Train Cards (Scrollable) */}
           <motion.div 
-            initial={{ opacity: 0, x: 30 }}
+            initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
-            className="lg:col-span-3"
+            className="lg:col-span-8 space-y-6 pb-20"
           >
-            <h2 className="font-display font-semibold text-xl text-slate-800 mb-4">
-              Available Trains
-            </h2>
+            <div className="flex items-center justify-between mb-2">
+                <h2 className="font-display font-bold text-2xl text-slate-900 tracking-tight">
+                {source && destination ? (
+                    <span className="flex items-center gap-2">
+                        Trains to <span className="text-blue-600">{destination}</span>
+                    </span>
+                ) : 'Available Trains'}
+                </h2>
+                <span className="text-sm font-medium text-slate-500 bg-white px-3 py-1 rounded-full shadow-sm border border-slate-100">
+                    {displayTrains.length} results
+                </span>
+            </div>
 
-            <div className="space-y-4">
-              {trains.map((train, index) => (
+            <div className="grid gap-5">
+              {displayTrains.map((train, index) => (
                 <motion.div
                   key={train.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 * index }}
-                  whileHover={{ scale: 1.01, y: -2 }}
+                  whileHover={{ y: -4 }}
                   onClick={() => setSelectedTrain(train.id)}
                   className={cn(
-                    "bg-white rounded-2xl p-5 cursor-pointer transition-all duration-300 border-2",
+                    "group bg-white rounded-3xl p-6 cursor-pointer transition-all duration-300 relative overflow-hidden",
                     selectedTrain === train.id 
-                      ? "border-blue-500 shadow-xl shadow-blue-500/10" 
-                      : "border-transparent shadow-lg shadow-slate-200/50 hover:shadow-xl"
+                      ? "ring-2 ring-blue-500 shadow-2xl shadow-blue-900/10" 
+                      : "border border-slate-100 shadow-lg shadow-slate-200/50 hover:shadow-xl hover:shadow-slate-300/40 hover:border-blue-200"
                   )}
                 >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-4">
+                  {/* Selection Indicator */}
+                  {selectedTrain === train.id && (
+                     <div className="absolute top-0 right-0 p-4">
+                         <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center shadow-lg shadow-blue-500/30">
+                            <div className="w-3 h-3 bg-white rounded-full"></div>
+                         </div>
+                     </div>
+                  )}
+
+                  <div className="flex items-start gap-6 relative z-10">
+                      {/* Train Icon Block */}
                       <div className={cn(
-                        "p-3 rounded-xl transition-colors",
-                        selectedTrain === train.id ? "bg-blue-100" : "bg-slate-100"
+                        "w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold transition-colors duration-300 shadow-inner",
+                        selectedTrain === train.id ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500"
                       )}>
-                        <Train className={cn(
-                          "w-6 h-6",
-                          selectedTrain === train.id ? "text-blue-600" : "text-slate-600"
-                        )} />
+                          <TrainIcon className="w-8 h-8" />
                       </div>
-                      <div>
-                        <h3 className="font-display font-bold text-lg text-slate-800">
-                          {train.name}
-                        </h3>
-                        <p className="text-sm text-slate-500">#{train.number}</p>
-                      </div>
-                    </div>
-                    
-                    {selectedTrain === train.id && (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        className="px-3 py-1 bg-blue-500 text-white text-xs font-semibold rounded-full"
-                      >
-                        Selected
-                      </motion.div>
-                    )}
-                  </div>
+                      
+                      <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+                              <div>
+                                <h3 className="font-display font-bold text-xl text-slate-900 group-hover:text-blue-700 transition-colors">
+                                  {train.name}
+                                </h3>
+                                <p className="text-sm font-medium text-slate-400 flex items-center gap-2 mt-1">
+                                    <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-500">#{train.number}</span>
+                                    <span>•</span>
+                                    <span>Daily Service</span>
+                                </p>
+                              </div>
+                              <div className="text-right hidden sm:block">
+                                  <p className="text-2xl font-bold text-slate-900 font-mono tracking-tight">{train.departureTime}</p>
+                                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Depart</p>
+                              </div>
+                          </div>
 
-                  {/* Timeline */}
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-slate-800">{train.departureTime}</p>
-                      <p className="text-xs text-slate-500">Departure</p>
-                    </div>
-                    
-                    <div className="flex-1 relative">
-                      <div className="h-0.5 bg-gradient-to-r from-emerald-400 via-slate-300 to-rose-400 rounded-full" />
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-emerald-500" />
-                      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-rose-500" />
-                      <div className="absolute left-1/2 -translate-x-1/2 -top-3 px-2 py-0.5 bg-slate-100 rounded text-xs text-slate-600 font-medium flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {train.duration}
-                      </div>
-                    </div>
-                    
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-slate-800">{train.arrivalTime}</p>
-                      <p className="text-xs text-slate-500">Arrival</p>
-                    </div>
-                  </div>
+                          {/* Timeline Strip */}
+                          <div className="flex items-center gap-6 mb-6">
+                             <div className="sm:hidden text-center">
+                                <p className="text-xl font-bold text-slate-900 font-mono">{train.departureTime}</p>
+                             </div>
+                             
+                             <div className="flex-1 h-2 bg-slate-100 rounded-full relative overflow-hidden">
+                                {selectedTrain === train.id && (
+                                    <motion.div 
+                                        layoutId="progress"
+                                        className="absolute inset-0 bg-blue-500/20"
+                                        initial={{ width: 0 }}
+                                        animate={{ width: "100%" }}
+                                    />
+                                )}
+                                <div className="absolute top-1/2 left-0 -translate-y-1/2 w-3 h-3 bg-white border-4 border-emerald-500 rounded-full shadow-sm z-10"></div>
+                                <div className="absolute top-1/2 right-0 -translate-y-1/2 w-3 h-3 bg-white border-4 border-rose-500 rounded-full shadow-sm z-10"></div>
+                                
+                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white border border-slate-200 px-3 py-1 rounded-full text-[10px] font-bold text-slate-500 shadow-sm z-20 flex items-center gap-1.5">
+                                    <Clock className="w-3 h-3 text-slate-400" />
+                                    {train.duration}
+                                </div>
+                             </div>
 
-                  {/* Amenities & Coaches */}
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                    <div className="flex items-center gap-4 text-slate-400">
-                      <div className="flex items-center gap-1 text-xs">
-                        <Wifi className="w-4 h-4" />
-                        <span>WiFi</span>
+                             <div className="text-right">
+                                <p className="text-2xl font-bold text-slate-900 font-mono tracking-tight">{train.arrivalTime}</p>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Arrive</p>
+                             </div>
+                          </div>
+
+                          {/* Footer Info */}
+                          <div className="flex flex-wrap items-center justify-between gap-4">
+                              <div className="flex items-center gap-2">
+                                  {train.coaches.slice(0, 3).map((coach, i) => (
+                                      <span key={i} className="px-2.5 py-1 bg-slate-100 border border-slate-200 text-slate-600 text-xs font-bold rounded-lg uppercase tracking-wide">
+                                          {coach}
+                                      </span>
+                                  ))}
+                                  {train.coaches.length > 3 && (
+                                      <span className="text-xs font-bold text-slate-400">+{train.coaches.length - 3} more</span>
+                                  )}
+                              </div>
+                              <div className="flex items-center gap-4 text-xs font-medium text-slate-400">
+                                  <span className="flex items-center gap-1.5 bg-green-50 text-green-700 px-2 py-1 rounded-md">
+                                      <Wifi className="w-3 h-3" /> WiFi
+                                  </span>
+                                  <span className="flex items-center gap-1.5 bg-orange-50 text-orange-700 px-2 py-1 rounded-md">
+                                      <UtensilsCrossed className="w-3 h-3" /> Pantry
+                                  </span>
+                              </div>
+                          </div>
                       </div>
-                      <div className="flex items-center gap-1 text-xs">
-                        <UtensilsCrossed className="w-4 h-4" />
-                        <span>Pantry</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs">
-                        <Armchair className="w-4 h-4" />
-                        <span>Recliner</span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-1.5">
-                      {train.coaches.slice(0, 4).map((coach) => (
-                        <span 
-                          key={coach}
-                          className="px-2 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded-md"
-                        >
-                          {coach}
-                        </span>
-                      ))}
-                      {train.coaches.length > 4 && (
-                        <span className="text-xs text-slate-400">
-                          +{train.coaches.length - 4}
-                        </span>
-                      )}
-                    </div>
                   </div>
                 </motion.div>
               ))}
+              
+              {displayTrains.length === 0 && (
+                  <div className="text-center py-20 bg-white/50 border border-dashed border-slate-300 rounded-3xl">
+                      <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
+                          <TrainIcon className="w-8 h-8 opacity-50" />
+                      </div>
+                      <h3 className="text-lg font-bold text-slate-600 mb-1">No trains found</h3>
+                      <p className="text-slate-400">Try changing your search filters</p>
+                  </div>
+              )}
             </div>
           </motion.div>
         </div>

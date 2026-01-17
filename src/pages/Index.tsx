@@ -1,7 +1,7 @@
-import { Button } from '@/components/ui/button';
-import { useNavigate } from 'react-router-dom';
-import { Train, MapPin, Ticket, Shield, Zap, Users, ArrowRight, ChevronDown } from 'lucide-react';
 import heroImage from '@/assets/hero-train.jpg';
+import { Button } from '@/components/ui/button';
+import { ArrowRight, ChevronDown, MapPin, Shield, Ticket, Users, Zap } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const Index = () => {
   const navigate = useNavigate();
@@ -39,10 +39,8 @@ const Index = () => {
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary rounded-lg">
-              <Train className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <span className="font-display font-bold text-xl text-foreground">
+            <img src="/logo (2).png" alt="RailSeat Logo" className="h-12 w-auto object-contain" />
+            <span className="font-display font-bold text-xl text-slate-800 tracking-tight">
               RailSeat
             </span>
           </div>
@@ -221,9 +219,7 @@ const Index = () => {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary rounded-lg">
-                <Train className="w-5 h-5 text-primary-foreground" />
-              </div>
+              <img src="/logo (2).png" alt="RailSeat Logo" className="h-10 w-auto object-contain" />
               <span className="font-display font-bold text-xl text-foreground">RailSeat</span>
             </div>
             <p className="text-sm text-muted-foreground">

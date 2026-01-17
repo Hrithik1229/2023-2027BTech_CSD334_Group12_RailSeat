@@ -22,30 +22,45 @@ const getCoachColor = (coachId: string): string => {
 
 export const CoachSelector = ({ coaches, selectedCoach, onSelect }: CoachSelectorProps) => {
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-        Select Coach
-      </h3>
-      <div className="flex flex-wrap gap-2">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
+            Select Coach
+          </h3>
+          <span className="text-xs text-muted-foreground bg-secondary/50 px-2 py-1 rounded-md">
+            {coaches.length} Coaches Available
+          </span>
+      </div>
+      <div className="flex flex-wrap gap-3">
         {coaches.map((coach) => (
           <button
             key={coach}
             onClick={() => onSelect(coach)}
             className={cn(
-              'coach-tab flex flex-col items-center min-w-[80px] transition-all duration-200',
-              selectedCoach === coach ? 'coach-tab-active scale-105' : 'coach-tab-inactive'
+              'group relative flex flex-col items-center min-w-[90px] p-3 rounded-2xl border transition-all duration-300 ease-out',
+              selectedCoach === coach 
+                ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/25 scale-105' 
+                : 'bg-card text-foreground border-border hover:border-primary/50 hover:bg-secondary/50'
             )}
           >
-            <div className="flex items-center gap-2">
-              <div className={cn('w-2 h-2 rounded-full', getCoachColor(coach))} />
-              <span className="font-semibold">{coach}</span>
+            <div className="flex items-center gap-2 mb-1">
+              <div className={cn(
+                  'w-2.5 h-2.5 rounded-full ring-2 ring-white/20', 
+                  getCoachColor(coach),
+                  selectedCoach === coach ? 'animate-pulse' : ''
+              )} />
+              <span className="font-bold text-lg leading-none">{coach}</span>
             </div>
             <span className={cn(
-              'text-xs mt-1',
-              selectedCoach === coach ? 'text-primary-foreground/80' : 'text-muted-foreground'
+              'text-[10px] font-medium tracking-wide uppercase',
+              selectedCoach === coach ? 'text-primary-foreground/90' : 'text-muted-foreground group-hover:text-foreground/80'
             )}>
               {getCoachTypeLabel(coach)}
             </span>
+            
+            {selectedCoach === coach && (
+                <div className="absolute -bottom-1 w-12 h-1 bg-white/20 rounded-full blur-[2px]"></div>
+            )}
           </button>
         ))}
       </div>
