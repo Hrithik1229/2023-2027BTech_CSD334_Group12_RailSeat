@@ -68,14 +68,20 @@ export const getAvailableSeats = async (req, res) => {
         
         // Get all seats for the coach
         const allSeats = await Seat.findAll({
-            where: { coach_id: coachId }
+            where: { coach_id: coachIdNum },
+            order: [['row_number', 'ASC'], ['seat_number', 'ASC']]
         });
         
-        // Mark seats as booked if they're in the booked list
+        // Mark seats as booked ONLY for this specific date
+        // The seat's base status in DB remains 'available', but we override it based on bookings for this date
         const seats = allSeats.map(seat => {
             const seatData = seat.toJSON();
+            // Override status based on bookings for this specific date only
             if (bookedSeatIds.includes(seat.seat_id)) {
-                seatData.status = 'booked';
+                seatData.status = 'booked'; // Booked for this date only
+            } else {
+                // Ensure status is available if not booked for this date
+                seatData.status = 'available';
             }
             return seatData;
         });

@@ -1,4 +1,3 @@
-import { Op } from "sequelize";
 import { Booking, Passenger, Seat, Train } from "../models/index.js";
 
 // Generate unique booking number
@@ -48,12 +47,10 @@ export const createBooking = async (req, res) => {
 
         await Promise.all(passengerPromises);
 
-        // Update seat statuses to booked
-        const seatIds = seats.map(s => s.seatId);
-        await Seat.update(
-            { status: 'booked' },
-            { where: { seat_id: { [Op.in]: seatIds } } }
-        );
+        // NOTE: We do NOT update seat status permanently here
+        // Seat availability is determined by checking bookings for a specific date
+        // The seat.status field is kept as 'available' and getAvailableSeats() 
+        // checks bookings by date to determine actual availability
 
         // Fetch complete booking with relations
         const completeBooking = await Booking.findByPk(booking.booking_id, {
@@ -141,19 +138,9 @@ export const updateBookingStatus = async (req, res) => {
 
         await booking.save();
 
-        // If booking is cancelled, free up the seats
-        if (bookingStatus === 'cancelled') {
-            const passengers = await Passenger.findAll({
-                where: { booking_id: id },
-                include: [{ model: Seat, as: 'seat' }]
-            });
-
-            const seatIds = passengers.map(p => p.seat_id);
-            await Seat.update(
-                { status: 'available' },
-                { where: { seat_id: { [Op.in]: seatIds } } }
-            );
-        }
+        // IMPORTANT: Do NOT update seat status when cancelling
+        // Seat availability is date-based and checked dynamically
+        // Cancelled bookings are automatically excluded from availability checks
 
         res.json(booking);
     } catch (error) {
@@ -174,16 +161,9 @@ export const cancelBooking = async (req, res) => {
         booking.booking_status = 'cancelled';
         await booking.save();
 
-        // Free up seats
-        const passengers = await Passenger.findAll({
-            where: { booking_id: id }
-        });
-
-        const seatIds = passengers.map(p => p.seat_id);
-        await Seat.update(
-            { status: 'available' },
-            { where: { seat_id: { [Op.in]: seatIds } } }
-        );
+        // IMPORTANT: Do NOT update seat status when cancelling
+        // Seat availability is date-based and checked dynamically via getAvailableSeats()
+        // Cancelled bookings are automatically excluded from availability checks
 
         res.json({ message: "Booking cancelled successfully", booking });
     } catch (error) {

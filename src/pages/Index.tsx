@@ -113,21 +113,6 @@ const Index = () => {
               </Button>
             </div>
 
-            {/* Stats */}
-            <div className="flex flex-wrap gap-8 mt-12 pt-8 border-t border-border/50 animate-slide-up" style={{ animationDelay: '0.3s' }}>
-              <div>
-                <p className="text-3xl font-display font-bold text-foreground">50K+</p>
-                <p className="text-sm text-muted-foreground">Happy Travelers</p>
-              </div>
-              <div>
-                <p className="text-3xl font-display font-bold text-foreground">200+</p>
-                <p className="text-sm text-muted-foreground">Train Routes</p>
-              </div>
-              <div>
-                <p className="text-3xl font-display font-bold text-foreground">99.9%</p>
-                <p className="text-sm text-muted-foreground">Uptime</p>
-              </div>
-            </div>
           </div>
         </div>
 
