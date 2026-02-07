@@ -1,13 +1,13 @@
 import { BookingSummary } from '@/components/BookingSummary';
 import { CoachSelector } from '@/components/CoachSelector';
-import { PassengerDetails, PassengerForm } from '@/components/PassengerForm';
 import Navbar from '@/components/Navbar';
+import { PassengerDetails, PassengerForm } from '@/components/PassengerForm';
 import { SeatMap } from '@/components/SeatMap';
 import { Button } from '@/components/ui/button';
 import { CoachLayout, CoachRow, Seat as SeatType } from '@/data/coachLayouts';
+import { getStoredUser } from '@/lib/api';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
-import { getStoredUser } from '@/lib/api';
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -94,6 +94,13 @@ const SeatBooking = () => {
   };
 
   useEffect(() => {
+    const user = getStoredUser();
+    if (!user) {
+      toast.error("Please login to select seats");
+      navigate('/login');
+      return;
+    }
+
     if (!trainId) {
       navigate('/');
       return;

@@ -1,14 +1,14 @@
+import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 import { getMyBookings, getStoredUser, setStoredUser, updateUserProfile, type Booking } from "@/lib/api";
 import { format } from "date-fns";
 import { Calendar, Ticket, Train } from "lucide-react";
-import Navbar from "@/components/Navbar";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast";
 
 const Profile = () => {
   const user = getStoredUser();
@@ -175,7 +175,6 @@ const Profile = () => {
               <Ticket className="h-5 w-5" />
               My Bookings
             </CardTitle>
-            <CardDescription>Bookings linked to your account (by user_id)</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (

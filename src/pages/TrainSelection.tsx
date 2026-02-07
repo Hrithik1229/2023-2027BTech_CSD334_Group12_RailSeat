@@ -2,17 +2,19 @@ import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
 } from '@/components/ui/popover';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
+import { getStoredUser } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -47,6 +49,7 @@ interface TrainStop {
 
 const TrainSelection = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [source, setSource] = useState<string>('');
   const [destination, setDestination] = useState<string>('');
   const [date, setDate] = useState<Date>();
@@ -132,7 +135,21 @@ const TrainSelection = () => {
     fetchStops();
   }, [selectedTrain]); // Removed source/dest dependency to avoid resetting when user customizes
 
+
+
   const handleSearch = () => {
+    const user = getStoredUser();
+    
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Authentication Required",
+        description: "Please login to proceed with booking.",
+      });
+      navigate('/login');
+      return;
+    }
+
     const finalSource = boardingStop || source;
     const finalDest = droppingStop || destination;
     
