@@ -8,6 +8,14 @@ const Booking = sequelize.define("Booking", {
         primaryKey: true,
         autoIncrement: true
     },
+    user_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+            model: "users",
+            key: "user_id"
+        }
+    },
     booking_number: {
         type: DataTypes.STRING,
         allowNull: false,
@@ -58,10 +66,8 @@ const Booking = sequelize.define("Booking", {
     timestamps: true
 });
 
-// Define relationships
-// User relationship removed
-
-Train.hasMany(Booking, { foreignKey: 'train_id', as: 'bookings' });
-Booking.belongsTo(Train, { foreignKey: 'train_id', as: 'train' });
+// Define relationships (User ↔ Booking set up in index.js to avoid circular import)
+Train.hasMany(Booking, { foreignKey: "train_id", as: "bookings" });
+Booking.belongsTo(Train, { foreignKey: "train_id", as: "train" });
 
 export default Booking;

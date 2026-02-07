@@ -1,4 +1,5 @@
 import heroImage from '@/assets/hero-train.jpg';
+import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, ChevronDown, MapPin, Shield, Ticket, Users, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -35,32 +36,18 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-background/80 backdrop-blur-md">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/logo (2).png" alt="RailSeat Logo" className="h-12 w-auto object-contain" />
-            <span className="font-display font-bold text-xl text-slate-800 tracking-tight">
-              RailSeat
-            </span>
-          </div>
-          <nav className="hidden md:flex items-center gap-8">
+      <Navbar
+        extraNav={
+          <>
             <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Features
             </a>
             <a href="#how-it-works" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               How It Works
             </a>
-            <Button 
-              onClick={() => navigate('/book')} 
-              className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20"
-            >
-              Book Now
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
-          </nav>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">

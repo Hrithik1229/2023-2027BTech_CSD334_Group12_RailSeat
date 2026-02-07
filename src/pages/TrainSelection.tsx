@@ -1,3 +1,4 @@
+import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -183,28 +184,14 @@ const TrainSelection = () => {
           <div className="absolute top-[20%] -left-[10%] w-[40%] h-[40%] rounded-full bg-indigo-400/20 blur-3xl"></div>
       </div>
 
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/60 sticky top-0 z-50 supports-[backdrop-filter]:bg-white/60">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <button 
-            onClick={() => navigate('/')}
-            className="flex items-center gap-3 group"
-          >
-            <img src="/logo (2).png" alt="RailSeat Logo" className="h-12 w-auto object-contain group-hover:scale-110 transition-transform duration-200" />
-            <span className="font-display font-bold text-xl text-slate-800 tracking-tight">
-              RailSeat
-            </span>
-          </button>
-          <Button 
-            variant="ghost" 
-            onClick={() => navigate('/')}
-            className="text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 rounded-full px-5"
-          >
+      <Navbar
+        extraNav={
+          <Button variant="ghost" onClick={() => navigate('/')} className="text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Home
           </Button>
-        </div>
-      </header>
+        }
+      />
 
       <main className="container mx-auto px-4 py-8 max-w-7xl relative z-10">
         {/* Page Header */}

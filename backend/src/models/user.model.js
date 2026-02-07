@@ -1,6 +1,5 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../config/db.js";
-import Booking from "./booking.model.js";
 
 const User = sequelize.define("User", {
     user_id: {
@@ -27,8 +26,6 @@ const User = sequelize.define("User", {
     timestamps: true
 });
 
-// Define relationships
-
-Booking.hasMany(User, { foreignKey: 'booking_id', as: 'users' });
+// Define relationships (User ↔ Booking set up in index.js to avoid circular import)
 
 export default User;

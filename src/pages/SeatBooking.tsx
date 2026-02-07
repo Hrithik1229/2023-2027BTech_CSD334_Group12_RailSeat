@@ -1,11 +1,13 @@
 import { BookingSummary } from '@/components/BookingSummary';
 import { CoachSelector } from '@/components/CoachSelector';
 import { PassengerDetails, PassengerForm } from '@/components/PassengerForm';
+import Navbar from '@/components/Navbar';
 import { SeatMap } from '@/components/SeatMap';
 import { Button } from '@/components/ui/button';
 import { CoachLayout, CoachRow, Seat as SeatType } from '@/data/coachLayouts';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
+import { getStoredUser } from '@/lib/api';
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -172,10 +174,11 @@ const SeatBooking = () => {
   const handlePassengerConfirm = async (passengers: PassengerDetails[]) => {
     setIsLoading(true);
     try {
+        const user = getStoredUser();
         const payload = {
-            // userId removed
-            contactName: passengers[0].name, // Use first passenger as contact
-            email: "user@example.com", // Placeholder or add email input field later
+            contactName: passengers[0].name,
+            email: user?.email ?? passengers[0].name + "@guest.local",
+            userId: user?.user_id ?? undefined,
             trainId: train.id,
             sourceStation: source,
             destinationStation: destination,
@@ -183,12 +186,12 @@ const SeatBooking = () => {
             seats: selectedSeats.map(s => ({ seatId: parseInt(s.id) })),
             passengers: passengers.map(p => ({
                 name: p.name,
-                // age removed
                 gender: p.gender
             }))
         };
 
-        const response = await fetch('http://localhost:3000/api/bookings', {
+        const apiBase = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
+        const response = await fetch(`${apiBase}/bookings`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -212,7 +215,7 @@ const SeatBooking = () => {
             duration: 6000,
         });
 
-        navigate('/'); 
+        navigate('/book'); 
 
     } catch (error: any) {
         console.error("Booking Error:", error);
@@ -245,28 +248,14 @@ const SeatBooking = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <button 
-            onClick={() => navigate('/')}
-            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-          >
-            <img src="/logo (2).png" alt="RailSeat Logo" className="h-10 w-auto object-contain" />
-            <span className="font-display font-semibold text-lg text-foreground">
-              RailSeat
-            </span>
-          </button>
-          <Button 
-            variant="ghost" 
-            onClick={() => navigate('/book')}
-            className="text-muted-foreground hover:text-foreground"
-          >
+      <Navbar
+        extraNav={
+          <Button variant="ghost" onClick={() => navigate('/book')} className="text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Change Train
           </Button>
-        </div>
-      </header>
+        }
+      />
 
       {/* Journey Info Bar */}
       <div className="bg-gradient-to-r from-primary to-blue-700 text-white shadow-xl relative overflow-hidden">

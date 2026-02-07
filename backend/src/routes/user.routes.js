@@ -2,16 +2,16 @@ import express from "express";
 import {
     getAllUsers,
     getUserById,
-    createUser,
     updateUser,
-    deleteUser
+    deleteUser,
+    getBookingsByUserId
 } from "../controllers/user.controller.js";
 
 const router = express.Router();
 
 router.get("/", getAllUsers);
+router.get("/:id/bookings", getBookingsByUserId);
 router.get("/:id", getUserById);
-router.post("/", createUser);
 router.put("/:id", updateUser);
 router.delete("/:id", deleteUser);
 

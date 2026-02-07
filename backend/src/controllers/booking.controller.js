@@ -8,7 +8,7 @@ const generateBookingNumber = () => {
 // Create a new booking
 export const createBooking = async (req, res) => {
     try {
-        const { contactName, email, trainId, sourceStation, destinationStation, travelDate, passengers, seats } = req.body;
+        const { contactName, email, trainId, sourceStation, destinationStation, travelDate, passengers, seats, userId } = req.body;
 
         // Calculate total amount
         let totalAmount = 0;
@@ -19,11 +19,12 @@ export const createBooking = async (req, res) => {
             }
         }
 
-        // Create booking
+        // Create booking (user_id optional - set when user is logged in)
         const booking = await Booking.create({
             booking_number: generateBookingNumber(),
-            contact_name: contactName, // Store contact name
-            email: email, // Store email
+            contact_name: contactName,
+            email: email,
+            user_id: userId || null,
             train_id: trainId,
             source_station: sourceStation,
             destination_station: destinationStation,
