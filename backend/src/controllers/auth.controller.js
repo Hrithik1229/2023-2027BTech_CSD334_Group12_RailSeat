@@ -55,15 +55,24 @@ export const signup = async (req, res) => {
  */
 export const login = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { email, username, identifier, password } = req.body;
 
-        if (!email || !password) {
+        const loginId = identifier || email || username;
+
+        if (!loginId || !password) {
             return res.status(400).json({
-                error: "Email and password are required"
+                error: "Username/Email and password are required"
             });
         }
 
-        const user = await User.findOne({ where: { email } });
+        const user = await User.findOne({
+            where: {
+                [Op.or]: [
+                    { email: loginId },
+                    { username: loginId }
+                ]
+            }
+        });
 
         if (!user) {
             return res.status(401).json({
@@ -83,7 +92,8 @@ export const login = async (req, res) => {
             user: {
                 user_id: user.user_id,
                 username: user.username,
-                email: user.email
+                email: user.email,
+                role: user.role
             }
         });
     } catch (error) {

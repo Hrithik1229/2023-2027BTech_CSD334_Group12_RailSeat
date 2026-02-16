@@ -1,7 +1,7 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../config/db.js";
 import Station from "./station.model.js";
-import Train from "./train.model.js";
+import TrainRun from "./trainRun.model.js";
 
 const TrainStop = sequelize.define("TrainStop", {
     stop_id: {
@@ -9,12 +9,12 @@ const TrainStop = sequelize.define("TrainStop", {
         primaryKey: true,
         autoIncrement: true
     },
-    train_id: {
+    run_id: {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: {
-            model: Train,
-            key: 'train_id'
+            model: TrainRun,
+            key: 'run_id'
         }
     },
     station_id: {
@@ -22,7 +22,7 @@ const TrainStop = sequelize.define("TrainStop", {
         allowNull: false,
         references: {
             model: Station,
-            key: 'station_id'
+            key: 'id'
         }
     },
     stop_order: {
@@ -40,15 +40,20 @@ const TrainStop = sequelize.define("TrainStop", {
     halt_duration: {
         type: DataTypes.INTEGER, // in minutes
         allowNull: true
+    },
+    distance_from_source: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+        defaultValue: 0
     }
 }, {
     tableName: "train_stops",
-    timestamps: false // Disable timestamps since table already exists with data
+    timestamps: false
 });
 
 // Define relationships
-Train.hasMany(TrainStop, { foreignKey: 'train_id', as: 'stops' });
-TrainStop.belongsTo(Train, { foreignKey: 'train_id', as: 'train' });
+TrainRun.hasMany(TrainStop, { foreignKey: 'run_id', as: 'stops' });
+TrainStop.belongsTo(TrainRun, { foreignKey: 'run_id', as: 'run' });
 
 Station.hasMany(TrainStop, { foreignKey: 'station_id', as: 'trainStops' });
 TrainStop.belongsTo(Station, { foreignKey: 'station_id', as: 'station' });

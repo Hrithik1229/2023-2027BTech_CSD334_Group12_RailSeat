@@ -16,26 +16,6 @@ const Train = sequelize.define("Train", {
         type: DataTypes.STRING,
         allowNull: false
     },
-    source_station: {
-        type: DataTypes.STRING,
-        allowNull: false
-    },
-    destination_station: {
-        type: DataTypes.STRING,
-        allowNull: false
-    },
-    departure_time: {
-        type: DataTypes.TIME,
-        allowNull: false
-    },
-    arrival_time: {
-        type: DataTypes.TIME,
-        allowNull: false
-    },
-    duration: {
-        type: DataTypes.STRING,
-        allowNull: false
-    },
     status: {
         type: DataTypes.ENUM('active', 'inactive'),
         defaultValue: 'active'

@@ -2,19 +2,19 @@ import { DataTypes } from "sequelize";
 import sequelize from "../config/db.js";
 
 const Station = sequelize.define("Station", {
-    station_id: {
+    id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true
     },
-    station_name: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        unique: true
-    },
-    station_code: {
+    code: {
         type: DataTypes.STRING,
         allowNull: true,
+        unique: true
+    },
+    name: {
+        type: DataTypes.STRING,
+        allowNull: false,
         unique: true
     },
     city: {

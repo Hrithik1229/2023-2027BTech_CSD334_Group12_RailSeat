@@ -1,13 +1,14 @@
-
 import heroImage from '@/assets/hero-train.jpg';
 import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, CheckCircle2, ChevronDown, MapPin, Shield, Ticket, Users, Zap } from 'lucide-react';
+import { getStoredUser } from '@/lib/api';
+import { ArrowRight, CheckCircle2, ChevronDown, LayoutDashboard, MapPin, Shield, Ticket, Users, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const Index = () => {
   const navigate = useNavigate();
-
+  const user = getStoredUser();
+  const isAdmin = user?.role === 'admin' || user?.email === 'admin@gmail.com';
   const features = [
     {
       icon: MapPin,
@@ -89,15 +90,27 @@ const Index = () => {
             </p>
             
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 animate-slide-up opacity-0" style={{ animationDelay: '0.4s', animationFillMode: 'forwards' }}>
-              <Button 
-                onClick={() => navigate('/book')}
-                size="lg"
-                className="h-14 px-8 text-lg font-semibold bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-1 transition-all duration-300 rounded-xl"
-              >
-                <Ticket className="w-5 h-5 mr-2" />
-                Book Your Ticket
-                <ArrowRight className="w-5 h-5 ml-2" />
-              </Button>
+              {isAdmin ? (
+                  <Button 
+                    onClick={() => navigate('/admin')}
+                    size="lg"
+                    className="h-14 px-8 text-lg font-semibold bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:-translate-y-1 transition-all duration-300 rounded-xl"
+                  >
+                    <LayoutDashboard className="w-5 h-5 mr-2" />
+                    Go to Admin Dashboard
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </Button>
+              ) : (
+                  <Button 
+                    onClick={() => navigate('/book')}
+                    size="lg"
+                    className="h-14 px-8 text-lg font-semibold bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-1 transition-all duration-300 rounded-xl"
+                  >
+                    <Ticket className="w-5 h-5 mr-2" />
+                    Book Your Ticket
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </Button>
+              )}
               <Button 
                 variant="outline"
                 size="lg"
@@ -197,13 +210,24 @@ const Index = () => {
           </div>
 
           <div className="text-center mt-24">
-            <Button 
-              onClick={() => navigate('/book')}
-              size="lg"
-              className="h-16 px-12 text-xl font-bold rounded-full shadow-2xl shadow-primary/30 hover:shadow-primary/50 hover:scale-105 transition-all duration-300 animate-pulse"
-            >
-              Start Booking Now
-            </Button>
+            {isAdmin ? (
+                <Button 
+                  onClick={() => navigate('/admin')}
+                  size="lg"
+                  className="h-16 px-12 text-xl font-bold rounded-full shadow-2xl shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-105 transition-all duration-300 animate-pulse bg-indigo-600 hover:bg-indigo-700"
+                >
+                  <LayoutDashboard className="w-5 h-5 mr-2 inline" />
+                  Access Admin Panel
+                </Button>
+            ) : (
+                <Button 
+                  onClick={() => navigate('/book')}
+                  size="lg"
+                  className="h-16 px-12 text-xl font-bold rounded-full shadow-2xl shadow-primary/30 hover:shadow-primary/50 hover:scale-105 transition-all duration-300 animate-pulse"
+                >
+                  Start Booking Now
+                </Button>
+            )}
           </div>
         </div>
       </section>

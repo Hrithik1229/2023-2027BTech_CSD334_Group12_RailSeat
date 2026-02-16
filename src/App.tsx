@@ -12,13 +12,20 @@ import SeatBooking from "./pages/SeatBooking";
 import Signup from "./pages/Signup";
 import TrainResults from "./pages/TrainResults";
 
+import { AdminLayout } from "./components/AdminLayout";
+import AdminDashboard from "./pages/Admin/Dashboard";
+import AdminLogin from "./pages/Admin/Login";
+import AdminRouteBuilder from "./pages/Admin/RouteBuilder";
+import AdminRuns from "./pages/Admin/Runs";
+import AdminTrains from "./pages/Admin/Trains";
+
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
-      <Sonner position="top-right" />
+      <Sonner />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
@@ -28,6 +35,16 @@ const App = () => (
           <Route path="/trains/results" element={<TrainResults />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/seats" element={<SeatBooking />} />
+          
+          {/* Admin Routes */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin" element={<AdminLayout />}>
+             <Route index element={<AdminDashboard />} />
+             <Route path="trains" element={<AdminTrains />} />
+             <Route path="runs" element={<AdminRuns />} />
+             <Route path="runs/:id/route" element={<AdminRouteBuilder />} />
+          </Route>
+
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

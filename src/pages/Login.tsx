@@ -30,7 +30,11 @@ const Login = () => {
       const { user } = await login(email, password);
       setStoredUser(user);
       toast({ title: "Welcome back!", description: `Logged in as ${user.username}` });
-      navigate("/book", { replace: true });
+      if (user.role === 'admin') {
+        navigate("/admin", { replace: true });
+      } else {
+        navigate("/book", { replace: true });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Login failed";
       setError(message);

@@ -1,45 +1,37 @@
-
 import Navbar from '@/components/Navbar';
+import { StationSearchInput } from '@/components/StationSearchInput';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import {
-    Command,
-    CommandEmpty,
-    CommandGroup,
-    CommandInput,
-    CommandItem,
-    CommandList,
-} from '@/components/ui/command';
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
 } from '@/components/ui/popover';
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { CalendarDays, Check, ChevronsUpDown, MapPin, Search } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { CalendarDays, Search } from 'lucide-react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const SearchTrains = () => {
   const navigate = useNavigate();
-  const [stations, setStations] = useState<{station_name: string, station_code: string}[]>([]);
+  // const [stations, setStations] = useState<{station_name: string, station_code: string}[]>([]); // Removed: Handled by StationSearchInput internally
   const [source, setSource] = useState<string>('');
   const [destination, setDestination] = useState<string>('');
   const [date, setDate] = useState<Date>();
   const [travelClass, setTravelClass] = useState<string>('');
   const [quota, setQuota] = useState<string>('');
-  const [openSource, setOpenSource] = useState(false);
-  const [openDest, setOpenDest] = useState(false);
+  // const [openSource, setOpenSource] = useState(false); // Removed
+  // const [openDest, setOpenDest] = useState(false); // Removed
 
-  useEffect(() => {
+  /* useEffect(() => {
     const fetchStations = async () => {
       try {
         const res = await fetch('http://localhost:3000/api/trains/stations');
@@ -50,7 +42,7 @@ const SearchTrains = () => {
       }
     };
     fetchStations();
-  }, []);
+  }, []); */
 
   const handleSearch = () => {
     if (!source || !destination || !date || !travelClass || !quota) return;
@@ -92,122 +84,30 @@ const SearchTrains = () => {
         <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/50 p-8">
             <div className="grid md:grid-cols-2 gap-8 mb-8">
                 {/* Source Station */}
-                <div className="space-y-2 flex flex-col">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">From Station</label>
-                    <Popover open={openSource} onOpenChange={setOpenSource}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={openSource}
-                          className="w-full h-16 justify-between text-base px-4 rounded-xl border-slate-200 hover:border-blue-400 hover:bg-slate-50 transition-all group"
-                        >
-                          <div className="flex items-center gap-3">
-                              <div className="p-2 bg-blue-50 text-blue-600 rounded-lg group-hover:bg-blue-100 transition-colors">
-                                  <MapPin className="w-5 h-5" />
-                              </div>
-                              <div className="flex flex-col items-start">
-                                  <span className={cn("font-medium", !source && "text-slate-400")}>
-                                      {source ? stations.find((s) => s.station_name === source)?.station_name : "Select source..."}
-                                  </span>
-                                  {source && <span className="text-xs text-slate-400 font-normal">Departing Station</span>}
-                              </div>
-                          </div>
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-[300px] p-0 rounded-xl" align="start">
-                        <Command>
-                          <CommandInput placeholder="Search station..." />
-                          <CommandList>
-                            <CommandEmpty>No station found.</CommandEmpty>
-                            <CommandGroup>
-                              {stations.map((station) => (
-                                <CommandItem
-                                  key={station.station_code || station.station_name}
-                                  value={station.station_name}
-                                  onSelect={(currentValue) => {
-                                    setSource(currentValue === source ? "" : currentValue)
-                                    setOpenSource(false)
-                                  }}
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4",
-                                      source === station.station_name ? "opacity-100" : "opacity-0"
-                                    )}
-                                  />
-                                  {station.station_name}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                </div>
+                <StationSearchInput 
+                    label="From Station"
+                    value={source}
+                    onChange={setSource}
+                    placeholder="Departing Station"
+                    iconColorClass="text-blue-600"
+                />
 
                 {/* Destination Station */}
-                <div className="space-y-2 flex flex-col">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">To Station</label>
-                    <Popover open={openDest} onOpenChange={setOpenDest}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={openDest}
-                          className="w-full h-16 justify-between text-base px-4 rounded-xl border-slate-200 hover:border-blue-400 hover:bg-slate-50 transition-all group"
-                        >
-                           <div className="flex items-center gap-3">
-                              <div className="p-2 bg-rose-50 text-rose-600 rounded-lg group-hover:bg-rose-100 transition-colors">
-                                  <MapPin className="w-5 h-5" />
-                              </div>
-                              <div className="flex flex-col items-start">
-                                  <span className={cn("font-medium", !destination && "text-slate-400")}>
-                                      {destination ? stations.find((s) => s.station_name === destination)?.station_name : "Select destination..."}
-                                  </span>
-                                  {destination && <span className="text-xs text-slate-400 font-normal">Arrival Station</span>}
-                              </div>
-                          </div>
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-[300px] p-0 rounded-xl" align="start">
-                        <Command>
-                          <CommandInput placeholder="Search station..." />
-                          <CommandList>
-                            <CommandEmpty>No station found.</CommandEmpty>
-                            <CommandGroup>
-                              {stations.map((station) => (
-                                <CommandItem
-                                  key={station.station_code || station.station_name}
-                                  value={station.station_name}
-                                  onSelect={(currentValue) => {
-                                    setDestination(currentValue === destination ? "" : currentValue)
-                                    setOpenDest(false)
-                                  }}
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4",
-                                      destination === station.station_name ? "opacity-100" : "opacity-0"
-                                    )}
-                                  />
-                                  {station.station_name}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
+                <div className="flex flex-col space-y-2">
+                    <StationSearchInput 
+                        label="To Station"
+                        value={destination}
+                        onChange={setDestination}
+                        placeholder="Arrival Station"
+                        iconColorClass="text-rose-600"
+                    />
                     {source && destination && source === destination && (
                         <span className="text-xs text-red-500 font-medium pl-1">Source and destination cannot be the same</span>
                     )}
                 </div>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-8 mb-8">
+            <div className="grid md:grid-cols-2 gap-8 mb-8">
                  {/* Date Selection */}
                  <div className="space-y-2 flex flex-col">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">Travel Date</label>
@@ -237,25 +137,6 @@ const SearchTrains = () => {
                     </Popover>
                  </div>
 
-                 {/* Class Selection */}
-                 <div className="space-y-2 flex flex-col">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">Class</label>
-                    <Select value={travelClass} onValueChange={setTravelClass}>
-                      <SelectTrigger className="w-full h-16 rounded-xl border-slate-200 hover:border-blue-400">
-                        <SelectValue placeholder="Select class" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="All">All Classes</SelectItem>
-                        <SelectItem value="SL">Sleeper (SL)</SelectItem>
-                        <SelectItem value="3A">AC 3 Tier (3A)</SelectItem>
-                        <SelectItem value="2A">AC 2 Tier (2A)</SelectItem>
-                        <SelectItem value="1A">AC First Class (1A)</SelectItem>
-                        <SelectItem value="CC">AC Chair Car (CC)</SelectItem>
-                        <SelectItem value="2S">Second Sitting (2S)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                 </div>
-
                  {/* Quota Selection */}
                  <div className="space-y-2 flex flex-col">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">Quota</label>
@@ -267,10 +148,44 @@ const SearchTrains = () => {
                         <SelectItem value="GN">General</SelectItem>
                         <SelectItem value="TQ">Tatkal</SelectItem>
                         <SelectItem value="LD">Ladies</SelectItem>
-                        <SelectItem value="SS">Senior Citizen</SelectItem>
+                        <SelectItem value="SS">Lower Berth /Sr. Citizen</SelectItem>
+                        <SelectItem value="WD">Person with Disability</SelectItem>
                       </SelectContent>
                     </Select>
                  </div>
+            </div>
+
+            {/* Class Selection - Pills */}
+            <div className="space-y-3 mb-8">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">Class</label>
+                <div className="flex flex-wrap gap-2">
+                    {[
+                        { id: "All", label: "All" },
+                        { id: "SL", label: "SL" },
+                        { id: "3A", label: "3A" },
+                        { id: "2A", label: "2A" },
+                        { id: "1A", label: "1A" },
+                        { id: "CC", label: "CC" },
+                        { id: "2S", label: "2S" },
+                        { id: "FC", label: "FC" },
+                        { id: "EC", label: "EC" },
+                        { id: "3E", label: "3E" },
+                        { id: "VS", label: "VS" },
+                    ].map((cls) => (
+                        <button
+                            key={cls.id}
+                            onClick={() => setTravelClass(cls.id)}
+                            className={cn(
+                                "px-4 py-3 rounded-xl text-sm font-semibold transition-all border",
+                                travelClass === cls.id 
+                                    ? "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20 transform scale-105" 
+                                    : "bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:bg-blue-50"
+                            )}
+                        >
+                            {cls.label}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             <Button 
