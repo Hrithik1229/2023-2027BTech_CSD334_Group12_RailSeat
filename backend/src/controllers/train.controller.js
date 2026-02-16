@@ -66,15 +66,52 @@ export const getTrainById = async (req, res) => {
     }
 };
 
-// Search trains by source and destination
+// Get all stations
+export const getAllStations = async (req, res) => {
+    try {
+        const stations = await Station.findAll({
+            order: [['station_name', 'ASC']]
+        });
+        res.json(stations);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Search trains by source and destination (including intermediate stops)
 export const searchTrains = async (req, res) => {
     try {
-        const { source, destination, date } = req.query;
+        const { source, destination, date } = req.query; // date can be used later for availability
+
+        // Find source station (by name)
+        const sourceWait = await Station.findOne({ where: { station_name: source } });
+        const destWait = await Station.findOne({ where: { station_name: destination } });
+
+        if (!sourceWait || !destWait) {
+            return res.json([]); // Station not found
+        }
+
+        // Find stops for these stations
+        const sourceStops = await TrainStop.findAll({ where: { station_id: sourceWait.station_id } });
+        const destStops = await TrainStop.findAll({ where: { station_id: destWait.station_id } });
+
+        // Find common train IDs where source stop order < dest stop order
+        const validTrainIds = [];
+
+        sourceStops.forEach(sStop => {
+            const dStop = destStops.find(ds => ds.train_id === sStop.train_id);
+            if (dStop && sStop.stop_order < dStop.stop_order) {
+                validTrainIds.push(sStop.train_id);
+            }
+        });
+
+        if (validTrainIds.length === 0) {
+            return res.json([]);
+        }
 
         const trains = await Train.findAll({
             where: {
-                source_station: source,
-                destination_station: destination,
+                train_id: validTrainIds,
                 status: 'active'
             },
             include: [{
@@ -83,10 +120,8 @@ export const searchTrains = async (req, res) => {
                 include: [{
                     model: Seat,
                     as: 'seats',
-                    where: {
-                        status: 'available'
-                    },
-                    required: false
+                    required: false, // Include seats even if status is not 'available' to count availability later
+                    where: { status: 'available' }
                 }]
             }]
         });
