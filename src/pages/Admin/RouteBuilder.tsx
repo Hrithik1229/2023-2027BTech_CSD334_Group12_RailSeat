@@ -188,13 +188,32 @@ export default function AdminRouteBuilder() {
                                      />
                                  </div>
                                  <div>
-                                     <label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Dist (km)</label>
+                                    <label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Dist (km)</label>
                                      <Input 
-                                         type="number" 
-                                         className="h-9 text-sm bg-white" 
-                                         value={stop.distance_from_source} 
-                                         onChange={(e) => updateStop(index, 'distance_from_source', parseFloat(e.target.value))} 
-                                     />
+                                        type="number" 
+                                        className="h-9 text-sm bg-white" 
+                                        value={
+                                            stop.distance_from_source === null ||
+                                            stop.distance_from_source === undefined ||
+                                            Number.isNaN(Number(stop.distance_from_source))
+                                                ? ""
+                                                : String(stop.distance_from_source)
+                                        } 
+                                        onChange={(e) => {
+                                            const raw = e.target.value;
+                                            if (raw === "") {
+                                                // Show empty in UI, but keep 0 in state to avoid NaN
+                                                updateStop(index, "distance_from_source", 0);
+                                                return;
+                                            }
+                                            const numeric = Number(raw);
+                                            updateStop(
+                                                index,
+                                                "distance_from_source",
+                                                Number.isNaN(numeric) ? 0 : numeric,
+                                            );
+                                        }} 
+                                    />
                                  </div>
                              </div>
 

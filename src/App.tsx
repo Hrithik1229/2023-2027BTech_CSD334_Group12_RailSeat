@@ -15,9 +15,12 @@ import TrainResults from "./pages/TrainResults";
 import { AdminLayout } from "./components/AdminLayout";
 import AdminDashboard from "./pages/Admin/Dashboard";
 import AdminLogin from "./pages/Admin/Login";
+import AdminFares from "./pages/Admin/Fares";
 import AdminRouteBuilder from "./pages/Admin/RouteBuilder";
 import AdminRuns from "./pages/Admin/Runs";
+import AdminStations from "./pages/Admin/Stations";
 import AdminTrains from "./pages/Admin/Trains";
+import AdminUsers from "./pages/Admin/Users";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +46,9 @@ const App = () => (
              <Route path="trains" element={<AdminTrains />} />
              <Route path="runs" element={<AdminRuns />} />
              <Route path="runs/:id/route" element={<AdminRouteBuilder />} />
+             <Route path="stations" element={<AdminStations />} />
+             <Route path="users" element={<AdminUsers />} />
+             <Route path="fares" element={<AdminFares />} />
           </Route>
 
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

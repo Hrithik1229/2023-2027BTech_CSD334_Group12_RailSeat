@@ -16,6 +16,11 @@ const Train = sequelize.define("Train", {
         type: DataTypes.STRING,
         allowNull: false
     },
+    // Comma-separated days the train is scheduled to operate (e.g. "Mon,Tue,Wed" or "Daily")
+    active_days: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
     status: {
         type: DataTypes.ENUM('active', 'inactive'),
         defaultValue: 'active'
