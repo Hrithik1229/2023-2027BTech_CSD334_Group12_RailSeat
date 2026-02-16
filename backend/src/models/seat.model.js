@@ -12,8 +12,9 @@ const Seat = sequelize.define("Seat", {
         type: DataTypes.STRING,
         allowNull: false
     },
+    // Updated ENUM to match the sitting coach layout in the image
     seat_type: {
-        type: DataTypes.ENUM('lower', 'middle', 'upper', 'side-lower', 'side-upper', 'window', 'aisle', 'middle-seat'),
+        type: DataTypes.ENUM('window', 'middle', 'aisle', 'lower', 'upper', 'side-lower', 'side-upper'),
         allowNull: false
     },
     status: {
@@ -32,16 +33,28 @@ const Seat = sequelize.define("Seat", {
             key: 'coach_id'
         }
     },
+    // Used to group seats into horizontal lines
     row_number: {
         type: DataTypes.INTEGER,
         allowNull: false
+    },
+    // NEW: Distinguishes between the "3-seat" side and "2-seat" side
+    side: {
+        type: DataTypes.ENUM('left', 'right'),
+        allowNull: false,
+        defaultValue: 'left'
+    },
+    // NEW: Horizontal order (e.g., Left side: 0=Window, 1=Middle, 2=Aisle)
+    position_index: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0
     }
 }, {
     tableName: "seats",
     timestamps: true
 });
 
-// Define relationships
 Coach.hasMany(Seat, { foreignKey: 'coach_id', as: 'seats' });
 Seat.belongsTo(Coach, { foreignKey: 'coach_id', as: 'coach' });
 
