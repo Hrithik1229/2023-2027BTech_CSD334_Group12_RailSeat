@@ -22,23 +22,103 @@ export const updateRoute = async (req, res) => {
         .json({ error: "Route must have at least 2 stops." });
     }
 
+    // Verify the run exists
+    const run = await TrainRun.findByPk(id, { transaction: t });
+    if (!run) {
+      console.log(`[updateRoute] - Run not found: ${id}`);
+      await t.rollback();
+      return res.status(404).json({ error: "Train run not found." });
+    }
+
+    // Validate each stop
+    for (let i = 0; i < stops.length; i++) {
+      const stop = stops[i];
+
+      // Validate station_id
+      if (!stop.station_id || isNaN(parseInt(stop.station_id))) {
+        await t.rollback();
+        return res.status(400).json({
+          error: `Invalid station_id at stop ${i + 1}. Must be a valid number.`
+        });
+      }
+
+      // Verify station exists
+      const station = await Station.findByPk(stop.station_id, { transaction: t });
+      if (!station) {
+        await t.rollback();
+        return res.status(400).json({
+          error: `Station with ID ${stop.station_id} not found at stop ${i + 1}.`
+        });
+      }
+
+      // Validate distance_from_source
+      const distance = parseFloat(stop.distance_from_source);
+      if (isNaN(distance) || distance < 0) {
+        await t.rollback();
+        return res.status(400).json({
+          error: `Invalid distance_from_source at stop ${i + 1}. Must be a non-negative number.`
+        });
+      }
+
+      // Validate halt_duration
+      const haltDuration = parseInt(stop.halt_duration);
+      if (isNaN(haltDuration) || haltDuration < 0) {
+        await t.rollback();
+        return res.status(400).json({
+          error: `Invalid halt_duration at stop ${i + 1}. Must be a non-negative integer.`
+        });
+      }
+
+      // Validate time formats (HH:MM:SS or HH:MM)
+      const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/;
+      if (stop.arrival_time && !timeRegex.test(stop.arrival_time)) {
+        await t.rollback();
+        return res.status(400).json({
+          error: `Invalid arrival_time format at stop ${i + 1}. Use HH:MM or HH:MM:SS.`
+        });
+      }
+      if (stop.departure_time && !timeRegex.test(stop.departure_time)) {
+        await t.rollback();
+        return res.status(400).json({
+          error: `Invalid departure_time format at stop ${i + 1}. Use HH:MM or HH:MM:SS.`
+        });
+      }
+
+      // First stop should have departure time
+      if (i === 0 && !stop.departure_time) {
+        console.warn(`[updateRoute] - Warning: First stop missing departure_time`);
+      }
+
+      // Last stop should have arrival time
+      if (i === stops.length - 1 && !stop.arrival_time) {
+        console.warn(`[updateRoute] - Warning: Last stop missing arrival_time`);
+      }
+
+      // Middle stops should have both times
+      if (i > 0 && i < stops.length - 1) {
+        if (!stop.arrival_time || !stop.departure_time) {
+          console.warn(`[updateRoute] - Warning: Intermediate stop ${i + 1} missing arrival or departure time`);
+        }
+      }
+    }
+
     // 1. Delete existing stops
     console.log(`[updateRoute] - Deleting existing stops for run_id: ${id}`);
-    await TrainStop.destroy({
+    const deletedCount = await TrainStop.destroy({
       where: { run_id: id },
       transaction: t,
     });
-    console.log(`[updateRoute] - Existing stops deleted for run_id: ${id}`);
+    console.log(`[updateRoute] - Deleted ${deletedCount} existing stops for run_id: ${id}`);
 
-    // 2. Prepare new stops data
+    // 2. Prepare new stops data with proper type conversion
     const stopsData = stops.map((stop, index) => ({
-      run_id: id,
-      station_id: stop.station_id,
+      run_id: parseInt(id),
+      station_id: parseInt(stop.station_id),
       stop_order: index + 1,
       arrival_time: stop.arrival_time || null,
       departure_time: stop.departure_time || null,
-      halt_duration: stop.halt_duration || 0,
-      distance_from_source: stop.distance_from_source || 0,
+      halt_duration: parseInt(stop.halt_duration) || 0,
+      distance_from_source: parseFloat(stop.distance_from_source) || 0,
     }));
     console.log(
       "[updateRoute] - Prepared new stops data:",
@@ -47,29 +127,81 @@ export const updateRoute = async (req, res) => {
 
     const createdStops = await TrainStop.bulkCreate(stopsData, {
       transaction: t,
+      validate: true,
     });
     console.log(`[updateRoute] - Created ${createdStops.length} new stops.`);
 
-    // 3. Update Run source/dest if changed based on new stops
+    // 3. Update Run source/dest and times based on new stops
     const sourceStop = stopsData[0];
     const destStop = stopsData[stopsData.length - 1];
+
+    // Calculate departure time (from first stop)
+    const departureTime = sourceStop.departure_time;
+
+    // Calculate arrival time (from last stop)
+    const arrivalTime = destStop.arrival_time;
+
+    // Calculate duration if both times are available
+    let duration = null;
+    if (departureTime && arrivalTime) {
+      try {
+        // Parse times (format: HH:MM or HH:MM:SS)
+        const parseTime = (timeStr) => {
+          const parts = timeStr.split(':');
+          const hours = parseInt(parts[0]);
+          const minutes = parseInt(parts[1]);
+          return hours * 60 + minutes; // Convert to minutes
+        };
+
+        const depMinutes = parseTime(departureTime);
+        const arrMinutes = parseTime(arrivalTime);
+
+        // Calculate duration in minutes (handle overnight journeys)
+        let durationMinutes = arrMinutes - depMinutes;
+        if (durationMinutes < 0) {
+          durationMinutes += 24 * 60; // Add 24 hours if overnight
+        }
+
+        // Convert to HH:MM format
+        const hours = Math.floor(durationMinutes / 60);
+        const minutes = durationMinutes % 60;
+        duration = `${hours}h ${minutes}m`;
+
+        console.log(`[updateRoute] - Calculated duration: ${duration} (${durationMinutes} minutes)`);
+      } catch (error) {
+        console.warn(`[updateRoute] - Failed to calculate duration:`, error.message);
+      }
+    }
+
     console.log(
-      `[updateRoute] - Updating TrainRun ${id} with source_station_id: ${sourceStop.station_id}, destination_station_id: ${destStop.station_id}`
+      `[updateRoute] - Updating TrainRun ${id}:`,
+      `\n  source_station_id: ${sourceStop.station_id}`,
+      `\n  destination_station_id: ${destStop.station_id}`,
+      `\n  departure_time: ${departureTime || 'NULL'}`,
+      `\n  arrival_time: ${arrivalTime || 'NULL'}`,
+      `\n  duration: ${duration || 'NULL'}`
     );
 
-    // This assumes sourceStop.station_id is correct.
-    // Ideally user passes correct data.
-    await TrainRun.update(
-      {
-        source_station_id: sourceStop.station_id,
-        destination_station_id: destStop.station_id,
-      },
+    const updateData = {
+      source_station_id: sourceStop.station_id,
+      destination_station_id: destStop.station_id,
+      departure_time: departureTime,
+      arrival_time: arrivalTime,
+    };
+
+    // Only add duration if it was calculated
+    if (duration) {
+      updateData.duration = duration;
+    }
+
+    const [updateCount] = await TrainRun.update(
+      updateData,
       {
         where: { run_id: id },
         transaction: t,
       }
     );
-    console.log(`[updateRoute] - TrainRun ${id} updated successfully.`);
+    console.log(`[updateRoute] - TrainRun ${id} updated successfully. Rows affected: ${updateCount}`);
 
     console.log("[updateRoute] - Committing transaction.");
     await t.commit();
@@ -77,16 +209,22 @@ export const updateRoute = async (req, res) => {
     res.json({
       message: "Route updated successfully",
       count: createdStops.length,
+      stops: createdStops,
     });
   } catch (error) {
     if (t) {
       console.error(
         "[updateRoute] - Transaction rolling back due to error:",
-        error.message
+        error.message,
+        error.stack
       );
       await t.rollback();
     }
-    res.status(500).json({ error: error.message });
+    console.error("[updateRoute] - Full error details:", error);
+    res.status(500).json({
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 

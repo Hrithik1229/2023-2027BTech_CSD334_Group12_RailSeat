@@ -13,9 +13,10 @@ import Signup from "./pages/Signup";
 import TrainResults from "./pages/TrainResults";
 
 import { AdminLayout } from "./components/AdminLayout";
+import AdminCoaches from "./pages/Admin/Coaches";
 import AdminDashboard from "./pages/Admin/Dashboard";
-import AdminLogin from "./pages/Admin/Login";
 import AdminFares from "./pages/Admin/Fares";
+import AdminLogin from "./pages/Admin/Login";
 import AdminRouteBuilder from "./pages/Admin/RouteBuilder";
 import AdminRuns from "./pages/Admin/Runs";
 import AdminStations from "./pages/Admin/Stations";
@@ -49,6 +50,7 @@ const App = () => (
              <Route path="stations" element={<AdminStations />} />
              <Route path="users" element={<AdminUsers />} />
              <Route path="fares" element={<AdminFares />} />
+             <Route path="coaches" element={<AdminCoaches />} />
           </Route>
 
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

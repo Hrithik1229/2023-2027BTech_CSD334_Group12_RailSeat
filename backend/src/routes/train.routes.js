@@ -2,8 +2,10 @@ import express from "express";
 import { createReverseRun, updateRoute } from "../controllers/admin.controller.js";
 import {
     addTrainStops,
+    createCoach,
     createTrain,
     createTrainRun,
+    deleteCoach,
     getAllStations,
     getAllTrains,
     getRunById,
@@ -32,8 +34,10 @@ router.get("/:id/stops", getTrainStops);
 router.get("/:id", getTrainById);
 router.post("/", createTrain);
 router.post("/:id/runs", createTrainRun);
+router.post("/:id/coaches", createCoach);
 router.post("/runs/:id/stops", addTrainStops);
 router.put("/runs/:id/route", updateRoute);
 router.post("/runs/:id/reverse", createReverseRun);
+router.delete("/coaches/:id", deleteCoach);
 
 export default router;

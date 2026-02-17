@@ -27,7 +27,13 @@ const TrainRun = sequelize.define("TrainRun", {
     duration: DataTypes.STRING,
 
     // optional but powerful
-    days_of_run: DataTypes.STRING  // "Mon,Tue,Wed"
+    days_of_run: DataTypes.STRING,  // "Mon,Tue,Wed"
+
+    status: {
+        type: DataTypes.ENUM('active', 'inactive'),
+        defaultValue: 'active',
+        allowNull: false
+    }
 }, {
     tableName: "train_runs"
 });

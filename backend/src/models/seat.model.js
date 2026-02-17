@@ -1,6 +1,5 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../config/db.js";
-import Coach from "./coach.model.js";
 
 const Seat = sequelize.define("Seat", {
     seat_id: {
@@ -9,53 +8,40 @@ const Seat = sequelize.define("Seat", {
         autoIncrement: true
     },
     seat_number: {
-        type: DataTypes.STRING,
+        type: DataTypes.INTEGER, // Changed to Integer for easier sorting
         allowNull: false
     },
-    // Updated ENUM to match the sitting coach layout in the image
-    seat_type: {
-        type: DataTypes.ENUM('window', 'middle', 'aisle', 'lower', 'upper', 'side-lower', 'side-upper'),
+    // Logical grouping for UI: Lower, Upper, Middle, Side-Lower, Side-Upper
+    berth_type: {
+        type: DataTypes.ENUM('LB', 'MB', 'UB', 'SL', 'SU', 'WS', 'MS', 'AS'),
         allowNull: false
     },
-    status: {
-        type: DataTypes.ENUM('available', 'selected', 'booked', 'locked'),
-        defaultValue: 'available'
+    // Row tracking (1, 2, 3...)
+    row_number: {
+        type: DataTypes.INTEGER,
+        allowNull: false
     },
-    price: {
-        type: DataTypes.DECIMAL(10, 2),
+    // Helps frontend know if it's the main cabin or the side-aisle berths
+    is_side_berth: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false
+    },
+    // Column index within the row (e.g., 0, 1, 2 for 3-seater; 0, 1 for 2-seater)
+    column_index: {
+        type: DataTypes.INTEGER,
         allowNull: false
     },
     coach_id: {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: {
-            model: Coach,
+            model: 'coaches', // Use table name string to avoid circular imports
             key: 'coach_id'
         }
-    },
-    // Used to group seats into horizontal lines
-    row_number: {
-        type: DataTypes.INTEGER,
-        allowNull: false
-    },
-    // NEW: Distinguishes between the "3-seat" side and "2-seat" side
-    side: {
-        type: DataTypes.ENUM('left', 'right'),
-        allowNull: false,
-        defaultValue: 'left'
-    },
-    // NEW: Horizontal order (e.g., Left side: 0=Window, 1=Middle, 2=Aisle)
-    position_index: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 0
     }
 }, {
     tableName: "seats",
-    timestamps: true
+    timestamps: false // Static data rarely needs timestamps
 });
-
-Coach.hasMany(Seat, { foreignKey: 'coach_id', as: 'seats' });
-Seat.belongsTo(Coach, { foreignKey: 'coach_id', as: 'coach' });
 
 export default Seat;

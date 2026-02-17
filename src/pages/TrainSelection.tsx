@@ -2,16 +2,16 @@ import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
 } from '@/components/ui/popover';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { API_BASE, getStoredUser } from '@/lib/api';
@@ -67,36 +67,75 @@ const TrainSelection = () => {
 
   useEffect(() => {
     const fetchTrains = async () => {
+      setIsLoading(true);
       try {
-        const response = await fetch(`${API_BASE}/trains`);
-        const data = await response.json();
+        let response;
+        let data;
         
-        const mappedTrains: TrainData[] = data.map((t: any) => ({
-          id: t.train_id.toString(),
-          number: t.train_number,
-          name: t.train_name,
-          coaches: t.coaches ? t.coaches.map((c: any) => c.coach_number) : [],
-          departureTime: t.departure_time.substring(0, 5),
-          arrivalTime: t.arrival_time.substring(0, 5),
-          duration: t.duration,
-          sourceStation: t.source_station,
-          destinationStation: t.destination_station
-        }));
+        // If source and destination are selected, use search endpoint
+        if (source && destination) {
+          console.log(`Searching trains from ${source} to ${destination}`);
+          response = await fetch(`${API_BASE}/trains/search?source=${encodeURIComponent(source)}&destination=${encodeURIComponent(destination)}`);
+          data = await response.json();
+          
+          console.log('Search results:', data);
+          
+          // Map search results to TrainData format
+          const mappedTrains: TrainData[] = data.map((result: any) => ({
+            id: result.run_id.toString(),
+            number: result.train_number,
+            name: result.train_name,
+            coaches: result.coaches ? result.coaches.map((c: any) => c.coach_number) : [],
+            departureTime: result.departure_time ? result.departure_time.substring(0, 5) : '--:--',
+            arrivalTime: result.arrival_time ? result.arrival_time.substring(0, 5) : '--:--',
+            duration: result.duration || 'N/A',
+            sourceStation: result.source || source,
+            destinationStation: result.destination || destination
+          }));
+          
+          setTrains(mappedTrains);
+          
+          // Extract unique stations from search results
+          const uniqueStations = Array.from(new Set(mappedTrains.flatMap(t => [t.sourceStation, t.destinationStation])));
+          setStations(uniqueStations);
+        } else {
+          // Otherwise, fetch all trains
+          console.log('Fetching all trains');
+          response = await fetch(`${API_BASE}/trains`);
+          data = await response.json();
+          
+          const mappedTrains: TrainData[] = data.map((t: any) => ({
+            id: t.train_id.toString(),
+            number: t.train_number,
+            name: t.train_name,
+            coaches: t.coaches ? t.coaches.map((c: any) => c.coach_number) : [],
+            departureTime: t.departure_time ? t.departure_time.substring(0, 5) : '--:--',
+            arrivalTime: t.arrival_time ? t.arrival_time.substring(0, 5) : '--:--',
+            duration: t.duration || 'N/A',
+            sourceStation: t.source_station,
+            destinationStation: t.destination_station
+          }));
 
-        setTrains(mappedTrains);
+          setTrains(mappedTrains);
 
-        // Extract unique stations
-        const uniqueStations = Array.from(new Set(mappedTrains.flatMap(t => [t.sourceStation, t.destinationStation])));
-        setStations(uniqueStations);
+          // Extract unique stations
+          const uniqueStations = Array.from(new Set(mappedTrains.flatMap(t => [t.sourceStation, t.destinationStation])));
+          setStations(uniqueStations);
+        }
       } catch (error) {
         console.error('Failed to fetch trains:', error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load trains. Please try again.",
+        });
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchTrains();
-  }, []);
+  }, [source, destination]); // Re-fetch when source or destination changes
 
   useEffect(() => {
     const fetchStops = async () => {
@@ -178,11 +217,8 @@ const TrainSelection = () => {
     ? (isValidRoute && !!date) 
     : (source && destination && date && selectedTrain);
 
-  // Filter trains for display based on selection (optional but good UX)
-  const displayTrains = trains.filter(t => 
-    (!source || t.sourceStation === source) && 
-    (!destination || t.destinationStation === destination)
-  );
+  // Display all trains returned from the API (already filtered by search if source/dest selected)
+  const displayTrains = trains;
 
   if (isLoading) {
     return (

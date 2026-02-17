@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { getStoredUser } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, LogOut, Map, Route, Settings, TrainTrack, Users } from "lucide-react";
+import { LayoutDashboard, LayoutGrid, LogOut, Map, Route, Settings, TrainTrack, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
@@ -31,6 +31,7 @@ export function AdminLayout() {
         { icon: Map, label: "Stations", path: "/admin/stations" },
         { icon: Users, label: "Users", path: "/admin/users" },
         { icon: Settings, label: "Fares", path: "/admin/fares" },
+        { icon: LayoutGrid, label: "Coaches", path: "/admin/coaches" },
     ];
 
     return (
@@ -66,8 +67,12 @@ export function AdminLayout() {
                         variant="ghost" 
                         className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
                         onClick={() => {
+                            // Clear all authentication data
                             localStorage.removeItem("admin_token");
-                            navigate("/admin/login");
+                            localStorage.removeItem("user");
+                            localStorage.removeItem("token");
+                            // Redirect to index page
+                            navigate("/");
                         }}
                     >
                         <LogOut className="w-4 h-4 mr-2" />

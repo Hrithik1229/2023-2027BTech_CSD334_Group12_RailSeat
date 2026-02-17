@@ -246,7 +246,8 @@ export default function AdminRouteBuilder() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3 w-[400px]">
+
+              <div className="grid grid-cols-4 gap-3 w-[520px]">
                 <div>
                   <label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">
                     Arrival
@@ -271,6 +272,36 @@ export default function AdminRouteBuilder() {
                     onChange={(e) =>
                       updateStop(index, "departure_time", e.target.value)
                     }
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">
+                    Halt (min)
+                  </label>
+                  <Input
+                    type="number"
+                    className="h-9 text-sm bg-white"
+                    min="0"
+                    value={
+                      stop.halt_duration === null ||
+                      stop.halt_duration === undefined ||
+                      Number.isNaN(Number(stop.halt_duration))
+                        ? ""
+                        : String(stop.halt_duration)
+                    }
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === "") {
+                        updateStop(index, "halt_duration", 0);
+                        return;
+                      }
+                      const numeric = Number(raw);
+                      updateStop(
+                        index,
+                        "halt_duration",
+                        Number.isNaN(numeric) ? 0 : numeric,
+                      );
+                    }}
                   />
                 </div>
                 <div>
