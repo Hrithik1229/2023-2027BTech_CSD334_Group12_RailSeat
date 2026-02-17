@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { API_BASE } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Plus, RefreshCcw, Train } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -38,7 +39,7 @@ export default function AdminTrains() {
     const fetchTrains = async () => {
         try {
             setLoading(true);
-            const res = await fetch("http://localhost:3000/api/trains");
+            const res = await fetch(`${API_BASE}/trains`);
             if (!res.ok) throw new Error("Failed to load trains");
             const data = await res.json();
             setTrains(data);
@@ -63,7 +64,7 @@ export default function AdminTrains() {
 
         try {
             setCreating(true);
-            const res = await fetch("http://localhost:3000/api/trains", {
+            const res = await fetch(`${API_BASE}/trains`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

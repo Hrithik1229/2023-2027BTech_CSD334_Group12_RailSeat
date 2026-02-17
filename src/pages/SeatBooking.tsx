@@ -5,7 +5,7 @@ import { PassengerDetails, PassengerForm } from '@/components/PassengerForm';
 import { SeatMap } from '@/components/SeatMap';
 import { Button } from '@/components/ui/button';
 import { CoachLayout, CoachRow, Seat as SeatType } from '@/data/coachLayouts';
-import { getStoredUser } from '@/lib/api';
+import { API_BASE, getStoredUser } from '@/lib/api';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -108,7 +108,7 @@ const SeatBooking = () => {
 
     const fetchTrainDetails = async () => {
       try {
-        const response = await fetch(`http://localhost:3000/api/trains/${trainId}`);
+        const response = await fetch(`${API_BASE}/trains/${trainId}`);
         if (!response.ok) throw new Error('Failed to fetch train details');
         
         const data = await response.json();
@@ -197,8 +197,7 @@ const SeatBooking = () => {
             }))
         };
 
-        const apiBase = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
-        const response = await fetch(`${apiBase}/bookings`, {
+        const response = await fetch(`${API_BASE}/bookings`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)

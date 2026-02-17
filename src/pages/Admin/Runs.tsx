@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { API_BASE } from "@/lib/api";
 import { Map, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -21,7 +22,7 @@ export default function AdminRuns() {
         const load = async () => {
             try {
                 setLoading(true);
-                const res = await fetch("http://localhost:3000/api/trains");
+                const res = await fetch(`${API_BASE}/trains`);
                 if (!res.ok) throw new Error("Failed to fetch trains");
                 const data = await res.json();
                 setTrains(data);
@@ -42,7 +43,7 @@ export default function AdminRuns() {
         }
         try {
             setCreatingFor(trainId);
-            const res = await fetch(`http://localhost:3000/api/trains/${trainId}/runs`, {
+            const res = await fetch(`${API_BASE}/trains/${trainId}/runs`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -55,7 +56,7 @@ export default function AdminRuns() {
             toast.success("Run created. Configure its route next.");
 
             // Refresh list
-            const reload = await fetch("http://localhost:3000/api/trains");
+            const reload = await fetch(`${API_BASE}/trains`);
             const data = await reload.json();
             setTrains(data);
 

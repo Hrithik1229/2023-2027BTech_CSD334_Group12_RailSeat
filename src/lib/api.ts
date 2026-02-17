@@ -1,5 +1,6 @@
-const API_BASE =
-  import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
+export const API_BASE =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV ? "/api" : `${window.location.origin}/api`);
 
 export type User = {
   user_id: number;

@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { API_BASE } from "@/lib/api";
 import { Shield, User2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -22,7 +23,7 @@ export default function AdminUsers() {
     const fetchUsers = async () => {
         try {
             setLoading(true);
-            const res = await fetch("http://localhost:3000/api/admin/users");
+            const res = await fetch(`${API_BASE}/admin/users`);
             if (!res.ok) throw new Error("Failed to load users");
             const data = await res.json();
             setUsers(data);
@@ -42,7 +43,7 @@ export default function AdminUsers() {
         const newRole = user.role === "admin" ? "user" : "admin";
         try {
             setUpdatingId(user.user_id);
-            const res = await fetch(`http://localhost:3000/api/admin/users/${user.user_id}`, {
+            const res = await fetch(`${API_BASE}/admin/users/${user.user_id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ role: newRole }),

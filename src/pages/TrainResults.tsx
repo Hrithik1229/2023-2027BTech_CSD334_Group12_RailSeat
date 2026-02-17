@@ -9,6 +9,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from "@/components/ui/skeleton";
+import { API_BASE } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ArrowLeft, ArrowRight, Clock, Filter, Train as TrainIcon, UtensilsCrossed, Wifi } from 'lucide-react';
@@ -50,7 +51,7 @@ const TrainResults = () => {
             destination: destination || '',
             date: dateStr || ''
         });
-        const response = await fetch(`http://localhost:3000/api/trains/search?${query.toString()}`);
+        const response = await fetch(`${API_BASE}/trains/search?${query.toString()}`);
         if (!response.ok) throw new Error('Failed to fetch');
         const data = await response.json();
         setTrains(data);

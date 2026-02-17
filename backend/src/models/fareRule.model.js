@@ -1,37 +1,41 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../config/db.js";
 
-const FareRule = sequelize.define("FareRule", {
+const FareRule = sequelize.define(
+  "FareRule",
+  {
     id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
     },
     train_type: {
-        type: DataTypes.STRING,
-        defaultValue: 'EXPRESS' // EXPRESS, SUPERFAST, LOCAL
+      type: DataTypes.STRING,
+      defaultValue: "EXPRESS", // EXPRESS, SUPERFAST, LOCAL
     },
     coach_type: {
-        type: DataTypes.ENUM('1A', '2A', '3A', 'SL', 'CC', '2S'),
-        allowNull: false
+      type: DataTypes.ENUM("1A", "2A", "3A", "SL", "CC", "2S"),
+      allowNull: false,
     },
     base_fare: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: false,
-        defaultValue: 0.00
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 0.0,
     },
     per_km_rate: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: false,
-        defaultValue: 0.00
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 0.0,
     },
     reservation_charge: {
-        type: DataTypes.DECIMAL(10, 2),
-        defaultValue: 0.00
-    }
-}, {
+      type: DataTypes.DECIMAL(10, 2),
+      defaultValue: 0.0,
+    },
+  },
+  {
     tableName: "fare_rules",
-    timestamps: true
-});
+    timestamps: true,
+  }
+);
 
 export default FareRule;

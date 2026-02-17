@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { API_BASE } from "@/lib/api";
 import { Coins, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -33,7 +34,7 @@ export default function AdminFares() {
     const fetchRules = async () => {
         try {
             setLoading(true);
-            const res = await fetch("http://localhost:3000/api/admin/fares");
+            const res = await fetch(`${API_BASE}/admin/fares`);
             if (!res.ok) throw new Error("Failed to load fare rules");
             const data = await res.json();
             setRules(data);
@@ -53,7 +54,7 @@ export default function AdminFares() {
         e.preventDefault();
         try {
             setSavingId("new");
-            const res = await fetch("http://localhost:3000/api/admin/fares", {
+            const res = await fetch(`${API_BASE}/admin/fares`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(form),
@@ -81,7 +82,7 @@ export default function AdminFares() {
         setRules((prev) => prev.map((r) => (r.id === rule.id ? updated : r)));
         try {
             setSavingId(rule.id);
-            const res = await fetch(`http://localhost:3000/api/admin/fares/${rule.id}`, {
+            const res = await fetch(`${API_BASE}/admin/fares/${rule.id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -107,7 +108,7 @@ export default function AdminFares() {
         if (!confirm("Delete this fare rule?")) return;
         try {
             setSavingId(id);
-            const res = await fetch(`http://localhost:3000/api/admin/fares/${id}`, {
+            const res = await fetch(`${API_BASE}/admin/fares/${id}`, {
                 method: "DELETE",
             });
             if (!res.ok && res.status !== 204) throw new Error("Failed to delete fare rule");

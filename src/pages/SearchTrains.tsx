@@ -3,16 +3,16 @@ import { StationSearchInput } from '@/components/StationSearchInput';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
 } from '@/components/ui/popover';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -31,18 +31,7 @@ const SearchTrains = () => {
   // const [openSource, setOpenSource] = useState(false); // Removed
   // const [openDest, setOpenDest] = useState(false); // Removed
 
-  /* useEffect(() => {
-    const fetchStations = async () => {
-      try {
-        const res = await fetch('http://localhost:3000/api/trains/stations');
-        const data = await res.json();
-        setStations(data);
-      } catch (error) {
-        console.error("Failed to fetch stations", error);
-      }
-    };
-    fetchStations();
-  }, []); */
+
 
   const handleSearch = () => {
     if (!source || !destination || !date || !travelClass || !quota) return;

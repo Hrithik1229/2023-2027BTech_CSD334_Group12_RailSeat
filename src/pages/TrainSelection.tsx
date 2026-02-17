@@ -2,19 +2,19 @@ import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
 } from '@/components/ui/popover';
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { getStoredUser } from '@/lib/api';
+import { API_BASE, getStoredUser } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -68,7 +68,7 @@ const TrainSelection = () => {
   useEffect(() => {
     const fetchTrains = async () => {
       try {
-        const response = await fetch('http://localhost:3000/api/trains');
+        const response = await fetch(`${API_BASE}/trains`);
         const data = await response.json();
         
         const mappedTrains: TrainData[] = data.map((t: any) => ({
@@ -109,7 +109,7 @@ const TrainSelection = () => {
 
       setStopsLoading(true);
       try {
-        const response = await fetch(`http://localhost:3000/api/trains/${selectedTrain}/stops`);
+        const response = await fetch(`${API_BASE}/trains/${selectedTrain}/stops`);
         const data = await response.json();
         setTrainStops(data);
         

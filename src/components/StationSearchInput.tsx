@@ -2,6 +2,7 @@
 import { Button } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { API_BASE } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Check, ChevronsUpDown, Loader2, MapPin } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -50,7 +51,7 @@ export function StationSearchInput({ value, onChange, placeholder, iconColorClas
         const fetchStations = async () => {
             setLoading(true);
             try {
-                const res = await fetch(`http://localhost:3000/api/trains/stations/search?q=${encodeURIComponent(debouncedSearch)}`);
+                const res = await fetch(`${API_BASE}/trains/stations/search?q=${encodeURIComponent(debouncedSearch)}`);
                 if (res.ok) {
                     const data = await res.json();
                     setStations(data);

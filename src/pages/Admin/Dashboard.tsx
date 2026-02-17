@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/card";
+import { API_BASE } from "@/lib/api";
 import { Activity, Map, Route as RouteIcon, Train } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -9,12 +10,11 @@ export default function Dashboard() {
         activeRuns: 0,
         missingTimetable: 0
     });
-
     useEffect(() => {
         const fetchStats = async () => {
             try {
                 // Fetch from backend
-                const res = await fetch("http://localhost:3000/api/admin/dashboard");
+                const res = await fetch(`${API_BASE}/admin/dashboard`);
                 if (res.ok) {
                     const data = await res.json();
                     setStats(data);

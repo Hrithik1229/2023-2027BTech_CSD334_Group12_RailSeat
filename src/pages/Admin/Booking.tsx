@@ -2,6 +2,7 @@ import { StationSearchInput } from "@/components/StationSearchInput";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { API_BASE } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Armchair, CalendarIcon, Search, Train } from "lucide-react";
@@ -32,7 +33,7 @@ export default function AdminBooking() {
         try {
             // Reusing the public search API for now
             const formattedDate = format(date, "yyyy-MM-dd");
-            const res = await fetch(`http://localhost:3000/api/trains/search?source=${source}&destination=${destination}&date=${formattedDate}`);
+            const res = await fetch(`${API_BASE}/trains/search?source=${source}&destination=${destination}&date=${formattedDate}`);
             if (!res.ok) throw new Error("Search failed");
             const data = await res.json();
             setSearchResults(data);

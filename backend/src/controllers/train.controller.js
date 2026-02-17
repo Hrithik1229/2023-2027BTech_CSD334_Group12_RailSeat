@@ -1,4 +1,4 @@
-import { Station, Train, TrainRun, TrainStop } from "../models/index.js";
+import { Coach, Seat, Station, Train, TrainRun, TrainStop } from "../models/index.js";
 
 // Get train stops (via Runs)
 export const getTrainStops = async (req, res) => {
