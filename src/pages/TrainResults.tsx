@@ -25,7 +25,7 @@ interface TrainData {
     duration: string;
     coaches: {
         coach_number: string;
-        seats: { status: string }[];
+        total_seats?: number;
     }[];
 }
 
@@ -51,7 +51,9 @@ const TrainResults = () => {
             destination: destination || '',
             date: dateStr || ''
         });
-        const response = await fetch(`${API_BASE}/trains/search?${query.toString()}`);
+        const url = `${API_BASE}/trains/search?${query.toString()}`;
+        console.log('Fetching trains from:', url);
+        const response = await fetch(url);
         if (!response.ok) throw new Error('Failed to fetch');
         const data = await response.json();
         setTrains(data);
@@ -209,7 +211,7 @@ const TrainResults = () => {
                                     <ArrowRight className="w-4 h-4 ml-2" />
                                 </Button>
                                 <p className="text-xs text-green-600 font-medium">
-                                    {train.coaches.reduce((acc, c) => acc + c.seats.filter(s => s.status === 'available').length, 0)} Options Available
+                                    {train.coaches.reduce((acc, c) => acc + (c.total_seats || 0), 0)} Options Available
                                 </p>
                              </div>
                         </div>

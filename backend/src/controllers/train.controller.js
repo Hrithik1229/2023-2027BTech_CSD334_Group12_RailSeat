@@ -1,4 +1,4 @@
-import { Coach, Seat, Station, Train, TrainRun, TrainStop } from "../models/index.js";
+import { Coach, Seat, Station, Train, TrainRun, TrainStop, sequelize } from "../models/index.js";
 
 // Get train stops (via Runs)
 export const getTrainStops = async (req, res) => {
@@ -182,7 +182,7 @@ export const searchTrains = async (req, res) => {
             return res.json([]);
         }
 
-        // Fetch Runs with train details
+        // Fetch Runs with train and coach details
         const runsData = await TrainRun.findAll({
             where: { run_id: validRuns.map(r => r.run_id) },
             include: [
@@ -192,14 +192,8 @@ export const searchTrains = async (req, res) => {
                     include: [{
                         model: Coach,
                         as: 'coaches',
-                        attributes: ['coach_id', 'coach_number', 'coach_type', 'total_seats'],
-                        include: [{
-                            model: Seat,
-                            as: 'seats',
-                            required: false,
-                            where: { status: 'available' },
-                            attributes: ['seat_id']
-                        }]
+                        // Use actual Coach model fields; there is no "total_seats" column
+                        attributes: ['coach_id', 'coach_number', 'coach_type', 'capacity']
                     }]
                 },
                 { model: Station, as: 'sourceStation', attributes: ['id', 'name', 'code'] },
@@ -253,8 +247,8 @@ export const searchTrains = async (req, res) => {
                     coach_id: c.coach_id,
                     coach_number: c.coach_number,
                     coach_type: c.coach_type,
-                    total_seats: c.total_seats,
-                    available_seats: c.seats ? c.seats.length : 0
+                    // Map capacity from the Coach model; caller can decide how to interpret
+                    total_seats: c.capacity
                 }))
             };
         });

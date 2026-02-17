@@ -14,6 +14,16 @@ import User from "./user.model.js";
 User.hasMany(Booking, { foreignKey: "user_id", as: "bookings" });
 Booking.belongsTo(User, { foreignKey: "user_id", as: "user" });
 
+// Define Train ↔ Coach associations
+// A train can have many coaches, each coach belongs to a single train
+Train.hasMany(Coach, { foreignKey: "train_id", as: "coaches" });
+Coach.belongsTo(Train, { foreignKey: "train_id", as: "train" });
+
+// Define Coach ↔ Seat associations
+// A coach can have many seats, each seat belongs to a single coach
+Coach.hasMany(Seat, { foreignKey: "coach_id", as: "seats" });
+Seat.belongsTo(Coach, { foreignKey: "coach_id", as: "coach" });
+
 // Export all models
 export {
     Booking, Coach, FareRule, Passenger, Seat, sequelize, Station, Train, TrainRun, TrainStop, User
