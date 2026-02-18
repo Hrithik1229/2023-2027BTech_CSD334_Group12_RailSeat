@@ -1,4 +1,3 @@
-
 import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,7 +24,7 @@ interface TrainData {
     duration: string;
     coaches: {
         coach_number: string;
-        total_seats?: number;
+        seats: any[]; // Seat objects without status field
     }[];
 }
 
@@ -51,11 +50,16 @@ const TrainResults = () => {
             destination: destination || '',
             date: dateStr || ''
         });
-        const url = `${API_BASE}/trains/search?${query.toString()}`;
-        console.log('Fetching trains from:', url);
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Failed to fetch');
+        console.log('Search query:', query.toString())
+        const response = await fetch(`${API_BASE}/trains/search?${query.toString()}`);
+        console.log('Response status:', response.status, response.statusText)
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          console.error('API Error:', errorData);
+          throw new Error(errorData.error || 'Failed to fetch trains');
+        }
         const data = await response.json();
+        console.log('Received trains:', data);
         setTrains(data);
       } catch (error) {
         console.error('Failed to fetch trains:', error);
@@ -211,7 +215,7 @@ const TrainResults = () => {
                                     <ArrowRight className="w-4 h-4 ml-2" />
                                 </Button>
                                 <p className="text-xs text-green-600 font-medium">
-                                    {train.coaches.reduce((acc, c) => acc + (c.total_seats || 0), 0)} Options Available
+                                    {train.coaches.reduce((acc, c) => acc + c.seats.length, 0)} Seats Available
                                 </p>
                              </div>
                         </div>
