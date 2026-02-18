@@ -4,7 +4,7 @@ import Navbar from '@/components/Navbar';
 import { PassengerDetails, PassengerForm } from '@/components/PassengerForm';
 import { SeatMap } from '@/components/SeatMap';
 import { Button } from '@/components/ui/button';
-import { CoachLayout, CoachRow, Seat as SeatType } from '@/data/coachLayouts';
+import { SeatType as BerthType, CoachLayout, CoachRow, Seat as SeatType } from '@/data/coachLayouts';
 import { API_BASE, getStoredUser } from '@/lib/api';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
@@ -25,71 +25,72 @@ const SeatBooking = () => {
   const [showPassengerForm, setShowPassengerForm] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Map DB berth_type codes → frontend BerthType string union
+  const mapBerthType = (berth: string): BerthType => {
+    const map: Record<string, BerthType> = {
+      LB: 'lower', MB: 'middle', UB: 'upper',
+      SL: 'side-lower', SU: 'side-upper',
+      WS: 'window', MS: 'middle-seat', AS: 'aisle',
+    };
+    return (map[berth] ?? 'lower') as BerthType;
+  };
+
+  // Map DB coach_type codes → SeatMap layout discriminator
+  const mapCoachType = (ct: string): 'sleeper' | 'ac' | 'chair' => {
+    if (ct === 'SL' || ct === '3E' || ct === '2S') return 'sleeper';
+    if (['1A', '2A', '3A', 'AC', 'EC', 'EA', 'EV'].includes(ct)) return 'ac';
+    return 'chair'; // CC, 2S, GEN, etc.
+  };
+
   // Transform backend coach data to frontend CoachLayout
   const transformCoachToLayout = (backendCoach: any): CoachLayout => {
     const rowMap = new Map<number, SeatType[]>();
-    
-    // Sort seats by seat number (numeric)
+
+    // Sort seats by seat_number (stored as integer in DB)
     const sortedSeats = [...backendCoach.seats].sort((a, b) => {
-        const numA = parseInt(a.seat_number.replace(/\D/g, '')) || 0;
-        const numB = parseInt(b.seat_number.replace(/\D/g, '')) || 0;
-        return numA - numB;
+      const numA = parseInt(String(a.seat_number).replace(/\D/g, '')) || 0;
+      const numB = parseInt(String(b.seat_number).replace(/\D/g, '')) || 0;
+      return numA - numB;
     });
 
     sortedSeats.forEach((s: any) => {
-      const rowNum = s.row_number;
-      if (!rowMap.has(rowNum)) {
-        rowMap.set(rowNum, []);
-      }
-      
-      rowMap.get(rowNum)?.push({
+      const rowNum = s.row_number ?? 1;
+      if (!rowMap.has(rowNum)) rowMap.set(rowNum, []);
+
+      rowMap.get(rowNum)!.push({
         id: s.seat_id.toString(),
-        number: s.seat_number,
-        type: s.seat_type,
-        status: s.status,
-        price: parseFloat(s.price)
+        number: String(s.seat_number),
+        type: mapBerthType(s.berth_type),
+        status: 'available',
+        price: 0,
       });
     });
 
-    let finalRows: CoachRow[] = [];
+    const layoutType = mapCoachType(backendCoach.coach_type);
     const sortedRowNumbers = Array.from(rowMap.keys()).sort((a, b) => a - b);
+    let finalRows: CoachRow[] = [];
 
-    if (backendCoach.coach_type === 'sleeper' || backendCoach.coach_type === 'ac') {
-        // For Sleeper/AC: Split into Main Row and Side Row
-        sortedRowNumbers.forEach(rowNum => {
-            const seats = rowMap.get(rowNum) || [];
-            
-            const mainSeats = seats.filter(s => !s.type.startsWith('side-'));
-            const sideSeats = seats.filter(s => s.type.startsWith('side-'));
-
-            // Sort side seats: Upper first (visual preference? Or standard?) 
-            // Usually Side Upper is above Side Lower physically, but seat number wise:
-            // S7 (SL), S8 (SU).
-            // SeatMap render: sideRow.seats.map().
-            // If we keep numeric sort: SL, SU.
-            // SeatMap:
-            //   map(seat => <Seat ... />)
-            //   Labels: SU, SL.
-            // It puts seats in a column. top -> bottom.
-            // If we want SU on top, we probably need SU first?
-            // Let's stick to numeric sort first.
-
-            finalRows.push({ rowNumber: rowNum, seats: mainSeats });
-            finalRows.push({ rowNumber: rowNum, seats: sideSeats });
-        });
+    if (layoutType === 'sleeper' || layoutType === 'ac') {
+      // Interleave main rows and side-berth rows (pairs)
+      sortedRowNumbers.forEach(rowNum => {
+        const seats = rowMap.get(rowNum) || [];
+        const mainSeats = seats.filter(s => !s.type.startsWith('side-'));
+        const sideSeats = seats.filter(s => s.type.startsWith('side-'));
+        finalRows.push({ rowNumber: rowNum, seats: mainSeats });
+        finalRows.push({ rowNumber: rowNum, seats: sideSeats });
+      });
     } else {
-        // For Chair Car: Keep as is
-        sortedRowNumbers.forEach(rowNum => {
-             finalRows.push({ rowNumber: rowNum, seats: rowMap.get(rowNum) || [] });
-        });
+      sortedRowNumbers.forEach(rowNum => {
+        finalRows.push({ rowNumber: rowNum, seats: rowMap.get(rowNum) || [] });
+      });
     }
 
     return {
       id: backendCoach.coach_number,
       name: backendCoach.coach_number,
-      type: backendCoach.coach_type,
-      totalSeats: backendCoach.total_seats,
-      rows: finalRows
+      type: layoutType,                        // ← was raw DB code like 'SL', now 'sleeper'
+      totalSeats: backendCoach.capacity ?? sortedSeats.length,
+      rows: finalRows,
     };
   };
 

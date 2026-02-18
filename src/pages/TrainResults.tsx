@@ -11,9 +11,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { API_BASE } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { ArrowLeft, ArrowRight, Clock, Filter, Train as TrainIcon, UtensilsCrossed, Wifi } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Clock, Filter, MapPin, Train as TrainIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+
+interface CoachSummary {
+    coach_type: string;
+    count: number;
+    total_seats: number;
+}
 
 interface TrainData {
     train_id: number;
@@ -22,11 +28,30 @@ interface TrainData {
     departure_time: string;
     arrival_time: string;
     duration: string;
+    distance_km: number;
     coaches: {
+        coach_id: number;
         coach_number: string;
-        seats: any[]; // Seat objects without status field
+        coach_type: string;
+        capacity: number;
+        seats: any[];
     }[];
+    coach_summary: CoachSummary[];
 }
+
+// Color map for coach types
+const COACH_TYPE_COLORS: Record<string, { bg: string; border: string; text: string; dot: string }> = {
+    '1A': { bg: 'bg-amber-50',   border: 'border-amber-200', text: 'text-amber-700', dot: 'bg-amber-400' },
+    '2A': { bg: 'bg-blue-50',    border: 'border-blue-200',  text: 'text-blue-700',  dot: 'bg-blue-400'  },
+    '3A': { bg: 'bg-indigo-50',  border: 'border-indigo-200',text: 'text-indigo-700',dot: 'bg-indigo-400'},
+    'SL': { bg: 'bg-green-50',   border: 'border-green-200', text: 'text-green-700', dot: 'bg-green-400' },
+    'CC': { bg: 'bg-purple-50',  border: 'border-purple-200',text: 'text-purple-700',dot: 'bg-purple-400'},
+    '2S': { bg: 'bg-rose-50',    border: 'border-rose-200',  text: 'text-rose-700',  dot: 'bg-rose-400'  },
+    'GEN':{ bg: 'bg-slate-50',   border: 'border-slate-200', text: 'text-slate-600', dot: 'bg-slate-400' },
+};
+
+const getCoachColors = (type: string) =>
+    COACH_TYPE_COLORS[type] ?? COACH_TYPE_COLORS['GEN'];
 
 const TrainResults = () => {
   const navigate = useNavigate();
@@ -50,9 +75,9 @@ const TrainResults = () => {
             destination: destination || '',
             date: dateStr || ''
         });
-        console.log('Search query:', query.toString())
+        console.log('Search query:', query.toString());
         const response = await fetch(`${API_BASE}/trains/search?${query.toString()}`);
-        console.log('Response status:', response.status, response.statusText)
+        console.log('Response status:', response.status, response.statusText);
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
           console.error('API Error:', errorData);
@@ -113,7 +138,7 @@ const TrainResults = () => {
                     Trains from <span className="text-blue-600">{source}</span> to <span className="text-blue-600">{destination}</span>
                 </h1>
                 <p className="text-slate-500 mt-1">
-                    {dateStr ? format(new Date(dateStr), 'EEEE, MMMM d, yyyy') : 'Date not selected'} • {trains.length} results
+                    {dateStr ? format(new Date(dateStr), 'EEEE, MMMM d, yyyy') : 'Date not selected'} • {trains.length} result{trains.length !== 1 ? 's' : ''}
                 </p>
             </div>
             
@@ -161,79 +186,119 @@ const TrainResults = () => {
             </div>
         ) : (
             <div className="space-y-5">
-                {sortedTrains.map((train) => (
-                    <div 
-                        key={train.train_id}
-                        className="group bg-white rounded-3xl p-6 border border-slate-100 shadow-lg shadow-slate-200/50 hover:shadow-xl hover:shadow-slate-300/40 hover:border-blue-200 transition-all duration-300"
-                    >
-                        <div className="flex flex-col md:flex-row md:items-center gap-6 md:gap-8">
-                             {/* Train Info */}
-                             <div className="flex items-center gap-4 md:w-1/4">
-                                <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shadow-inner">
-                                    <TrainIcon className="w-7 h-7" />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-lg text-slate-900">{train.train_name}</h3>
-                                    <span className="text-xs font-medium bg-slate-100 text-slate-500 px-2 py-0.5 rounded">
-                                        #{train.train_number}
-                                    </span>
-                                </div>
-                             </div>
+                {sortedTrains.map((train) => {
+                    // Build coach summary — fall back to deriving from coaches array if coach_summary is missing
+                    const summary: CoachSummary[] = train.coach_summary?.length
+                        ? train.coach_summary
+                        : Object.values(
+                            (train.coaches || []).reduce<Record<string, CoachSummary>>((acc, c) => {
+                                const t = c.coach_type || 'GEN';
+                                if (!acc[t]) acc[t] = { coach_type: t, count: 0, total_seats: 0 };
+                                acc[t].count += 1;
+                                acc[t].total_seats += c.capacity || c.seats?.length || 0;
+                                return acc;
+                            }, {})
+                        );
 
-                             {/* Time Info */}
-                             <div className="flex-1 flex items-center justify-between gap-8 px-4 border-l border-r border-slate-100 border-dashed md:border-solid mx-4 md:mx-0 py-4 md:py-0">
-                                <div className="text-center">
-                                    <p className="text-2xl font-bold text-slate-900 font-mono tracking-tight">{train.departure_time.substring(0, 5)}</p>
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{source}</p>
-                                </div>
-                                <div className="flex flex-col items-center">
-                                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400 mb-1">
-                                        <Clock className="w-3 h-3" /> {train.duration}
+                    const totalSeats = summary.reduce((s, c) => s + c.total_seats, 0);
+
+                    return (
+                        <div 
+                            key={train.train_id}
+                            className="group bg-white rounded-3xl p-6 border border-slate-100 shadow-lg shadow-slate-200/50 hover:shadow-xl hover:shadow-slate-300/40 hover:border-blue-200 transition-all duration-300"
+                        >
+                            <div className="flex flex-col md:flex-row md:items-center gap-6 md:gap-8">
+                                 {/* Train Info */}
+                                 <div className="flex items-center gap-4 md:w-1/4">
+                                    <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shadow-inner">
+                                        <TrainIcon className="w-7 h-7" />
                                     </div>
-                                    <div className="w-24 h-0.5 bg-slate-200 rounded-full relative">
-                                        <div className="absolute top-1/2 left-0 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-300"></div>
-                                        <div className="absolute top-1/2 right-0 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                                    <div>
+                                        <h3 className="font-bold text-lg text-slate-900">{train.train_name}</h3>
+                                        <span className="text-xs font-medium bg-slate-100 text-slate-500 px-2 py-0.5 rounded">
+                                            #{train.train_number}
+                                        </span>
                                     </div>
-                                </div>
-                                <div className="text-center">
-                                    <p className="text-2xl font-bold text-slate-900 font-mono tracking-tight">{train.arrival_time.substring(0, 5)}</p>
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{destination}</p>
-                                </div>
-                             </div>
-
-                             {/* Action */}
-                             <div className="flex flex-col items-center gap-3 md:w-1/5">
-                                <div className="flex gap-2 text-xs text-slate-400">
-                                    <span title="Pantry Available"><UtensilsCrossed className="w-3 h-3" /></span>
-                                    <span title="WiFi Available"><Wifi className="w-3 h-3" /></span>
-                                </div>
-                                <Button 
-                                    onClick={() => handleBook(train)}
-                                    className="w-full font-bold rounded-xl bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20"
-                                >
-                                    View Seats
-                                    <ArrowRight className="w-4 h-4 ml-2" />
-                                </Button>
-                                <p className="text-xs text-green-600 font-medium">
-                                    {train.coaches.reduce((acc, c) => acc + c.seats.length, 0)} Seats Available
-                                </p>
-                             </div>
-                        </div>
-
-                        {/* Class Badges */}
-                        <div className="mt-6 pt-4 border-t border-slate-50 flex gap-2 overflow-x-auto pb-2">
-                             {["1A", "2A", "3A", "SL"].map(cls => (
-                                 <div key={cls} className={cn(
-                                     "px-3 py-1.5 rounded-lg border text-sm font-medium whitespace-nowrap",
-                                     travelClass === cls ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-white border-slate-100 text-slate-500"
-                                 )}>
-                                     {cls}
-                                     <span className="ml-2 text-xs opacity-50">₹ {Math.floor(Math.random() * 2000) + 500}</span>
                                  </div>
-                             ))}
+
+                                 {/* Time & Distance Info */}
+                                 <div className="flex-1 flex items-center justify-between gap-8 px-4 border-l border-r border-slate-100 border-dashed md:border-solid mx-4 md:mx-0 py-4 md:py-0">
+                                    <div className="text-center">
+                                        <p className="text-2xl font-bold text-slate-900 font-mono tracking-tight">{train.departure_time.substring(0, 5)}</p>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{source}</p>
+                                    </div>
+                                    <div className="flex flex-col items-center gap-1">
+                                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400">
+                                            <Clock className="w-3 h-3" /> {train.duration}
+                                        </div>
+                                        <div className="w-24 h-0.5 bg-slate-200 rounded-full relative">
+                                            <div className="absolute top-1/2 left-0 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                                            <div className="absolute top-1/2 right-0 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                                        </div>
+                                        {train.distance_km > 0 && (
+                                            <div className="flex items-center gap-1 text-xs text-slate-400 font-medium">
+                                                <MapPin className="w-3 h-3" />
+                                                {train.distance_km} km
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-2xl font-bold text-slate-900 font-mono tracking-tight">{train.arrival_time.substring(0, 5)}</p>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{destination}</p>
+                                    </div>
+                                 </div>
+
+                                 {/* Action */}
+                                 <div className="flex flex-col items-center gap-3 md:w-1/5">
+                                    <p className="text-xs text-green-600 font-semibold">
+                                        {totalSeats} Seats Available
+                                    </p>
+                                    <Button 
+                                        onClick={() => handleBook(train)}
+                                        className="w-full font-bold rounded-xl bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20"
+                                    >
+                                        View Seats
+                                        <ArrowRight className="w-4 h-4 ml-2" />
+                                    </Button>
+                                 </div>
+                            </div>
+
+                            {/* Coach Availability */}
+                            <div className="mt-5 pt-4 border-t border-slate-100">
+                                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+                                    Available Coaches
+                                </p>
+                                {summary.length === 0 ? (
+                                    <p className="text-xs text-slate-400 italic">No coach information available</p>
+                                ) : (
+                                    <div className="flex flex-wrap gap-2">
+                                        {summary.map((c) => {
+                                            const colors = getCoachColors(c.coach_type);
+                                            const isSelected = travelClass === c.coach_type;
+                                            return (
+                                                <div
+                                                    key={c.coach_type}
+                                                    className={cn(
+                                                        "flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all",
+                                                        isSelected
+                                                            ? `${colors.bg} ${colors.border} ${colors.text} ring-2 ring-offset-1 ring-current`
+                                                            : `${colors.bg} ${colors.border} ${colors.text}`
+                                                    )}
+                                                >
+                                                    <span className={cn("w-2 h-2 rounded-full", colors.dot)}></span>
+                                                    <span className="font-bold">{c.coach_type}</span>
+                                                    <span className="opacity-60 text-xs">
+                                                        {c.count} coach{c.count !== 1 ? 'es' : ''} · {c.total_seats} seats
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         )}
       </main>

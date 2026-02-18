@@ -129,6 +129,20 @@ export const searchStations = async (req, res) => {
   }
 };
 
+// Helper: compute duration string from two HH:MM:SS time strings
+const calcDuration = (depTime, arrTime) => {
+  if (!depTime || !arrTime) return "N/A";
+  const toMins = (t) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  };
+  let diff = toMins(arrTime) - toMins(depTime);
+  if (diff < 0) diff += 24 * 60; // overnight journey
+  const h = Math.floor(diff / 60);
+  const m = diff % 60;
+  return `${h}h ${m.toString().padStart(2, "0")}m`;
+};
+
 // Search trains (Refactored for Runs)
 export const searchTrains = async (req, res) => {
   try {
@@ -213,10 +227,23 @@ export const searchTrains = async (req, res) => {
 
     const results = runsData.map((run) => {
       const match = validRuns.find((r) => r.run_id === run.run_id);
-      // Calculate duration simply
-      const start = match.sourceStop.departure_time; // HH:MM:SS
-      const end = match.destStop.arrival_time;
-      // We can do better duration calc if we parse times, but for now just pass strings
+
+      // Calculate distance between source and destination stops
+      const srcDist = parseFloat(match.sourceStop.distance_from_source) || 0;
+      const dstDist = parseFloat(match.destStop.distance_from_source) || 0;
+      const distance_km = Math.round(Math.abs(dstDist - srcDist));
+
+      // Group coaches by type for a summary
+      const coachSummary = {};
+      (run.train.coaches || []).forEach((coach) => {
+        const type = coach.coach_type || "GEN";
+        if (!coachSummary[type]) {
+          coachSummary[type] = { coach_type: type, count: 0, total_seats: 0 };
+        }
+        coachSummary[type].count += 1;
+        coachSummary[type].total_seats += coach.capacity || (coach.seats ? coach.seats.length : 0);
+      });
+
       return {
         run_id: run.run_id,
         train_id: run.train_id,
@@ -227,8 +254,10 @@ export const searchTrains = async (req, res) => {
         destination: destWait.name,
         departure_time: match.sourceStop.departure_time,
         arrival_time: match.destStop.arrival_time,
-        duration: "Check Schedule", // match.stop_order diff?
+        duration: calcDuration(match.sourceStop.departure_time, match.destStop.arrival_time),
+        distance_km,
         coaches: run.train.coaches,
+        coach_summary: Object.values(coachSummary),
       };
     });
 
