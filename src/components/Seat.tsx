@@ -1,10 +1,10 @@
-import { Seat as SeatType, SeatStatus, SeatType as SeatTypeEnum } from '@/data/coachLayouts';
-import { cn } from '@/lib/utils';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { Seat as SeatType, SeatType as SeatTypeEnum } from '@/data/coachLayouts';
+import { cn } from '@/lib/utils';
 
 interface SeatProps {
   seat: SeatType;
@@ -62,22 +62,30 @@ export const Seat = ({ seat, onSelect, isSelected }: SeatProps) => {
           {seat.number}
         </button>
       </TooltipTrigger>
-      <TooltipContent 
-        side="top" 
-        className="bg-card border border-border shadow-lg px-3 py-2"
+      <TooltipContent
+        side="top"
+        className="z-50 overflow-hidden rounded-xl border bg-popover px-3 py-2 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2"
       >
-        <div className="text-sm">
-          <p className="font-semibold text-foreground">Seat {seat.number}</p>
-          <p className="text-muted-foreground">{seatTypeLabels[seat.type]}</p>
-          <p className="text-primary font-medium">₹{seat.price}</p>
-          <p className={cn(
-            'text-xs capitalize mt-1',
-            seat.status === 'available' && 'text-emerald-600',
-            seat.status === 'booked' && 'text-gray-500',
-            seat.status === 'locked' && 'text-amber-600'
+        <div className="grid gap-1 text-center">
+          <div className="text-sm font-bold">Seat {seat.number}</div>
+          <div className="text-xs text-muted-foreground">{seatTypeLabels[seat.type]}</div>
+          {seat.price > 0 ? (
+            <div className="font-mono text-sm font-bold text-emerald-600">
+              ₹{seat.price}
+            </div>
+          ) : (
+            <div className="text-xs text-muted-foreground animate-pulse">
+              Updating fare...
+            </div>
+          )}
+          <div className={cn(
+            "text-[10px] font-bold uppercase tracking-wider mt-1",
+            seat.status === 'available' ? 'text-emerald-500' :
+            seat.status === 'booked' ? 'text-rose-500' :
+            seat.status === 'locked' ? 'text-amber-500' : 'text-slate-500'
           )}>
             {isSelected ? 'Selected' : seat.status}
-          </p>
+          </div>
         </div>
       </TooltipContent>
     </Tooltip>

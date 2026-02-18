@@ -114,6 +114,7 @@ const TrainResults = () => {
           isoDate: dateStr,
           trainId: train.train_id.toString(),
           class: travelClass,
+          distance: train.distance_km,
           quota
         } 
       });

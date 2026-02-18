@@ -4,6 +4,7 @@ import Coach from "./coach.model.js";
 import FareRule from "./fareRule.model.js";
 import Passenger from "./passenger.model.js";
 import Seat from "./seat.model.js";
+import SeatTypePricing from "./seatPreferenceMultiplier.model.js";
 import Station from "./station.model.js";
 import Train from "./train.model.js";
 import TrainRun from "./trainRun.model.js";
@@ -26,6 +27,6 @@ Seat.belongsTo(Coach, { foreignKey: "coach_id", as: "coach" });
 
 // Export all models
 export {
-    Booking, Coach, FareRule, Passenger, Seat, sequelize, Station, Train, TrainRun, TrainStop, User
+    Booking, Coach, FareRule, Passenger, Seat, SeatTypePricing, Station, Train, TrainRun, TrainStop, User, sequelize
 };
 

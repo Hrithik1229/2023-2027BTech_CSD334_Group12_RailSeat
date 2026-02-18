@@ -1,8 +1,16 @@
-import { Booking, Passenger, Seat, Train } from "../models/index.js";
+import { Booking, Coach, Passenger, Seat, Train } from "../models/index.js";
 
 // Generate unique booking number
-const generateBookingNumber = () => {
-  return `BK${Date.now()}${Math.floor(Math.random() * 1000)}`;
+// Generate unique 10-digit booking number
+const generateBookingNumber = async () => {
+  let pnr;
+  let isUnique = false;
+  while (!isUnique) {
+    pnr = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+    const existing = await Booking.findOne({ where: { booking_number: pnr } });
+    if (!existing) isUnique = true;
+  }
+  return pnr;
 };
 
 // Create a new booking
@@ -16,22 +24,28 @@ export const createBooking = async (req, res) => {
       destinationStation,
       travelDate,
       passengers,
-      seats,
+      seats, // Expects [{ seatId, price }, ...]
       userId,
+      totalAmount: requestTotalAmount // Optional direct total
     } = req.body;
 
-    // Calculate total amount
-    let totalAmount = 0;
-    for (const seatData of seats) {
-      const seat = await Seat.findByPk(seatData.seatId);
-      if (seat) {
-        totalAmount += parseFloat(seat.price);
+    // Calculate total amount from payload if not provided directly
+    // (We trust frontend price here as we don't have distance/fare-rules readily available to re-calc)
+    let totalAmount = requestTotalAmount ? Number(requestTotalAmount) : 0;
+
+    if (!totalAmount && seats && seats.length > 0) {
+      for (const seatData of seats) {
+        if (seatData.price) {
+          totalAmount += Number(seatData.price);
+        }
       }
     }
 
+    const bookingNumber = await generateBookingNumber();
+
     // Create booking (user_id optional - set when user is logged in)
     const booking = await Booking.create({
-      booking_number: generateBookingNumber(),
+      booking_number: bookingNumber,
       contact_name: contactName,
       email: email,
       user_id: userId || null,
@@ -39,7 +53,7 @@ export const createBooking = async (req, res) => {
       source_station: sourceStation,
       destination_station: destinationStation,
       travel_date: travelDate,
-      total_amount: totalAmount,
+      total_amount: totalAmount || 0,
       booking_status: "pending",
       payment_status: "pending",
     });
@@ -70,7 +84,13 @@ export const createBooking = async (req, res) => {
         {
           model: Passenger,
           as: "passengers",
-          include: [{ model: Seat, as: "seat" }],
+          include: [
+            {
+              model: Seat,
+              as: "seat",
+              include: [{ model: Coach, as: "coach" }]
+            }
+          ],
         },
       ],
     });
@@ -91,7 +111,13 @@ export const getBookingById = async (req, res) => {
         {
           model: Passenger,
           as: "passengers",
-          include: [{ model: Seat, as: "seat" }],
+          include: [
+            {
+              model: Seat,
+              as: "seat",
+              include: [{ model: Coach, as: "coach" }]
+            }
+          ],
         },
       ],
     });
@@ -121,7 +147,13 @@ export const getBookingsByEmail = async (req, res) => {
         {
           model: Passenger,
           as: "passengers",
-          include: [{ model: Seat, as: "seat" }],
+          include: [
+            {
+              model: Seat,
+              as: "seat",
+              include: [{ model: Coach, as: "coach" }]
+            }
+          ],
         },
       ],
       order: [["createdAt", "DESC"]],

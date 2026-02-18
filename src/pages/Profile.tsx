@@ -208,6 +208,31 @@ const Profile = () => {
                         Amount: ₹{Number(b.total_amount).toFixed(2)} • Status:{" "}
                         <span className="capitalize">{b.booking_status}</span>
                       </p>
+                      
+                      {/* Passenger Details */}
+                      {b.passengers && b.passengers.length > 0 && (
+                        <div className="mt-4 pt-3 border-t border-border">
+                          <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Passenger Details</p>
+                          <div className="grid gap-2">
+                            {b.passengers.map((p: any, idx: number) => (
+                              <div key={idx} className="flex flex-wrap justify-between items-center text-sm bg-background/50 p-2 rounded border border-border/50">
+                                <span className="font-medium">{p.passenger_name} <span className="text-muted-foreground text-xs">({p.passenger_gender})</span></span>
+                                <span className="text-muted-foreground font-mono text-xs">
+                                  {p.seat ? (
+                                    <>
+                                      COACH <span className="font-bold text-foreground">{p.seat.coach?.coach_number}</span> • 
+                                      SEAT <span className="font-bold text-foreground">{p.seat.seat_number}</span> • 
+                                      <span className="ml-1">{p.seat.berth_type}</span>
+                                    </>
+                                  ) : (
+                                    "Unassigned"
+                                  )}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </li>
                 ))}

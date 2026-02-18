@@ -15,15 +15,18 @@ import { toast } from 'sonner';
 const SeatBooking = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { trainId, source, destination, date, isoDate } = location.state || {};
+  const { trainId, source, destination, date, isoDate, distance } = location.state || {}; // distance comes from TrainResults
 
   const [train, setTrain] = useState<any>(null);
   const [coachLayouts, setCoachLayouts] = useState<Record<string, CoachLayout>>({});
   const [selectedCoach, setSelectedCoach] = useState<string>('');
+  const [rawCoaches, setRawCoaches] = useState<any[]>([]); 
   const [selectedSeats, setSelectedSeats] = useState<SeatType[]>([]);
   const [showError, setShowError] = useState(false);
   const [showPassengerForm, setShowPassengerForm] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [journeyDistance, setJourneyDistance] = useState<number>(distance || 0);
+  const [bookedSeatIds, setBookedSeatIds] = useState<Set<string>>(new Set());
 
   // Map DB berth_type codes → frontend BerthType string union
   const mapBerthType = (berth: string): BerthType => {
@@ -114,7 +117,7 @@ const SeatBooking = () => {
         
         const data = await response.json();
 
-        // Filter out non-passenger coaches — they have no seats and are not bookable
+        // Filter out non-passenger coaches
         const NON_PASSENGER = ['ENG', 'PCL', 'GEN'];
         const bookableCoaches = (data.coaches || []).filter(
           (c: any) => !NON_PASSENGER.includes(String(c.coach_type).toUpperCase())
@@ -124,6 +127,7 @@ const SeatBooking = () => {
             id: data.train_id.toString(),
             number: data.train_number,
             name: data.train_name,
+            trainType: data.train_type,
             coaches: bookableCoaches.map((c: any) => c.coach_number)
         };
 
@@ -133,10 +137,25 @@ const SeatBooking = () => {
         });
 
         setTrain(trainData);
+        setRawCoaches(bookableCoaches);
         setCoachLayouts(layouts);
 
         if (bookableCoaches.length > 0) {
             setSelectedCoach(bookableCoaches[0].coach_number);
+        }
+
+        // ONE-TIME FALLBACK: If distance is missing, fetch it via search API
+        if (!journeyDistance && source && destination) {
+            console.log("Fetching fallback distance for", source, destination);
+            const searchRes = await fetch(`${API_BASE}/trains/search?source=${source}&destination=${destination}&date=${isoDate || ''}`);
+            if (searchRes.ok) {
+                const searchData = await searchRes.json();
+                const matchedTrain = searchData.find((t: any) => t.train_id.toString() === trainId);
+                if (matchedTrain && matchedTrain.distance_km) {
+                    console.log("Found distance:", matchedTrain.distance_km);
+                    setJourneyDistance(matchedTrain.distance_km);
+                }
+            }
         }
 
       } catch (error) {
@@ -148,11 +167,94 @@ const SeatBooking = () => {
     };
 
     fetchTrainDetails();
-  }, [trainId, navigate]);
+  }, [trainId, navigate, source, destination, isoDate]);
 
   useEffect(() => {
     setSelectedSeats([]);
   }, [selectedCoach]);
+
+  // Fetch availability when train details change
+  useEffect(() => {
+    if (!trainId || !isoDate || !source || !destination) return;
+    const fetchAvail = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/trains/${trainId}/availability?date=${isoDate}&source=${source}&destination=${destination}`);
+        if (res.ok) {
+          const { bookedSeatIds: ids } = await res.json();
+          // Ensure IDs are strings to match frontend model
+          setBookedSeatIds(new Set(ids.map(String)));
+        }
+      } catch (err) {
+        console.error("Availability fetch failed", err);
+      }
+    };
+    fetchAvail();
+  }, [trainId, isoDate, source, destination]);
+
+  // Fetch fares and update seat status when selectedCoach OR availability changes
+  useEffect(() => {
+    if (!selectedCoach || !train || !journeyDistance || rawCoaches.length === 0) return;
+
+    const fetchFares = async () => {
+      try {
+        const coachData = rawCoaches.find(c => c.coach_number === selectedCoach);
+        if (!coachData) return;
+
+        const currentLayout = coachLayouts[selectedCoach];
+        if (!currentLayout) return;
+
+        const uniqueBerthTypes = Array.from(new Set(
+          (coachData.seats || []).map((s: any) => s.berth_type)
+        ));
+
+        let fareMap: Record<string, number> = {};
+        if (uniqueBerthTypes.length > 0) {
+            const response = await fetch(`${API_BASE}/trains/fare`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    distance: journeyDistance,
+                    trainType: train.trainType,
+                    coachType: coachData.coach_type,
+                    berthTypes: uniqueBerthTypes
+                })
+            });
+
+            if (response.ok) {
+                fareMap = await response.json();
+            } else {
+                console.warn("Fare fetch failed, using fallback");
+            }
+        }
+
+        // Update coachLayouts with prices AND booked status
+        setCoachLayouts(prev => {
+            const layout = { ...prev[selectedCoach] };
+            layout.rows = layout.rows.map(row => ({
+                ...row,
+                seats: row.seats.map(seat => {
+                    const originalSeat = coachData.seats.find((s:any) => s.seat_id.toString() === seat.id);
+                    const berthCode = originalSeat ? originalSeat.berth_type : '';
+                    const price = fareMap[berthCode] || 500; 
+                    const isBooked = bookedSeatIds.has(seat.id);
+                    
+                    return { 
+                        ...seat, 
+                        price, 
+                        status: isBooked ? 'booked' : 'available' 
+                    };
+                })
+            }));
+            return { ...prev, [selectedCoach]: layout };
+        });
+
+      } catch (err) {
+        console.error("Failed to fetch fares/status", err);
+      }
+    };
+
+    fetchFares();
+  }, [selectedCoach, train?.id, journeyDistance, rawCoaches.length, bookedSeatIds]);
 
   const handleSeatSelect = (seat: SeatType) => {
     const isSelected = selectedSeats.some(s => s.id === seat.id);
@@ -197,7 +299,11 @@ const SeatBooking = () => {
             sourceStation: source,
             destinationStation: destination,
             travelDate: isoDate || new Date().toISOString().split('T')[0],
-            seats: selectedSeats.map(s => ({ seatId: parseInt(s.id) })),
+            seats: selectedSeats.map(s => ({ 
+                seatId: parseInt(s.id),
+                price: s.price 
+            })),
+            totalAmount: selectedSeats.reduce((sum, s) => sum + (s.price || 0), 0),
             passengers: passengers.map(p => ({
                 name: p.name,
                 gender: p.gender

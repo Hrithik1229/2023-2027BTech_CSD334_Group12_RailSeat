@@ -2,6 +2,7 @@ import express from "express";
 import { createReverseRun, updateRoute } from "../controllers/admin.controller.js";
 import {
     addTrainStops,
+    calculateJourneyFare,
     createCoach,
     createTrain,
     createTrainRun,
@@ -9,10 +10,12 @@ import {
     getAllStations,
     getAllTrains,
     getRunById,
+    getTrainAvailability,
     getTrainById,
     getTrainStops,
     searchStations,
-    searchTrains
+    searchTrains,
+    seedFaresController
 } from "../controllers/train.controller.js";
 
 const router = express.Router();
@@ -29,9 +32,12 @@ router.get("/", getAllTrains);
 router.get("/stations", getAllStations);
 router.get("/stations/search", searchStations);
 router.get("/search", searchTrains);
+router.get("/seed-fares", seedFaresController);
+router.post("/fare", calculateJourneyFare);
 router.get("/runs/:id", getRunById);
 router.get("/:id/stops", getTrainStops);
 router.get("/:id", getTrainById);
+router.get("/:id/availability", getTrainAvailability);
 router.post("/", createTrain);
 router.post("/:id/runs", createTrainRun);
 router.post("/:id/coaches", createCoach);
