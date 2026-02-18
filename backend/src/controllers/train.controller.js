@@ -32,28 +32,33 @@ export const getTrainStops = async (req, res) => {
 export const getAllTrains = async (req, res) => {
   try {
     const trains = await Train.findAll({
-      where: {
-        status: "active",
-      },
+      where: { status: "active" },
       include: [
         {
           model: TrainRun,
           as: "runs",
           include: [
-            {
-              model: Station,
-              as: "sourceStation",
-            },
-            {
-              model: Station,
-              as: "destinationStation",
-            },
+            { model: Station, as: "sourceStation" },
+            { model: Station, as: "destinationStation" },
           ],
+        },
+        {
+          model: Coach,
+          as: "coaches",
+          attributes: ["coach_id", "coach_number", "coach_type", "capacity", "sequence_order"],
         },
       ],
       order: [["train_name", "ASC"]],
     });
-    res.json(trains);
+
+    // Sequelize ignores order inside nested includes — sort in JS
+    const sorted = trains.map((train) => {
+      const t = train.toJSON();
+      t.coaches = (t.coaches || []).sort((a, b) => a.sequence_order - b.sequence_order);
+      return t;
+    });
+
+    res.json(sorted);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -85,7 +90,11 @@ export const getTrainById = async (req, res) => {
       return res.status(404).json({ error: "Train not found" });
     }
 
-    res.json(train);
+    // Sort coaches by sequence_order (Sequelize ignores order in nested includes)
+    const result = train.toJSON();
+    result.coaches = (result.coaches || []).sort((a, b) => a.sequence_order - b.sequence_order);
+
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -345,7 +354,10 @@ export const createCoach = async (req, res) => {
     const nextSequence =
       existingCoaches.length > 0 ? existingCoaches[0].sequence_order + 1 : 1;
 
-    const actualCapacity = capacity || total_seats || 72;
+    // Non-passenger coaches (engine, parcel van, general unreserved) have no seats
+    const NON_PASSENGER = ['ENG', 'PCL', 'GEN'];
+    const isEngine = NON_PASSENGER.includes(String(coach_type).toUpperCase());
+    const actualCapacity = isEngine ? 0 : (capacity || total_seats || 72);
 
     const coach = await Coach.create({
       coach_number,
@@ -354,6 +366,11 @@ export const createCoach = async (req, res) => {
       sequence_order: nextSequence,
       train_id: id,
     });
+
+    // Engine coaches have no seats — return immediately
+    if (isEngine) {
+      return res.status(201).json(coach);
+    }
 
     const seatsToCreate = [];
     const type = String(coach_type).toUpperCase();

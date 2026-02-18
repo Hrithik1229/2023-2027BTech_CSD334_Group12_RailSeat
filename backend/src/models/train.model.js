@@ -21,6 +21,17 @@ const Train = sequelize.define("Train", {
         type: DataTypes.STRING,
         allowNull: true
     },
+    train_type: {
+        type: DataTypes.ENUM(
+            'Superfast',
+            'Express',
+            'Mail',
+            'Passenger',
+            'Local'
+        ),
+        allowNull: false,
+        defaultValue: 'Express'
+    },
     status: {
         type: DataTypes.ENUM('active', 'inactive'),
         defaultValue: 'active'

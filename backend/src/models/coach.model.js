@@ -14,7 +14,7 @@ const Coach = sequelize.define("Coach", {
     coach_type: {
         type: DataTypes.ENUM(
             '1A', '2A', '3A', '3E', 'SL',
-            'CC', 'EC', 'EA', '2S', 'EV'
+            'CC', 'EC', 'EA', '2S', 'EV', 'ENG', 'PCL', 'GEN'
         ),
         allowNull: false
     },

@@ -1,55 +1,37 @@
-const LegendItem = ({ 
-  gradientFrom, 
-  gradientTo,
-  label, 
-  borderColor,
-  glow
-}: { 
-  gradientFrom: string;
-  gradientTo: string;
-  label: string; 
-  borderColor: string;
-  glow?: string;
-}) => (
-  <div className="flex items-center gap-2.5">
-    <div 
-      className={`w-8 h-8 rounded-lg border-2 shadow-sm flex items-center justify-center ${borderColor} ${glow || ''}`}
-      style={{ background: `linear-gradient(145deg, ${gradientFrom}, ${gradientTo})` }}
-    >
-      <span className="text-[10px] font-bold text-gray-500/50">00</span>
-    </div>
-    <span className="text-sm font-medium text-foreground">{label}</span>
+const LEGEND_ITEMS = [
+  {
+    cls: 'seat-available',
+    label: 'Available',
+    dot: 'bg-emerald-400',
+  },
+  {
+    cls: 'seat-selected',
+    label: 'Selected',
+    dot: 'bg-blue-500',
+  },
+  {
+    cls: 'seat-booked',
+    label: 'Booked',
+    dot: 'bg-gray-300',
+  },
+  {
+    cls: 'seat-locked',
+    label: 'Locked',
+    dot: 'bg-amber-400',
+  },
+];
+
+export const SeatLegend = () => (
+  <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-muted/40 rounded-xl border border-border/40 backdrop-blur-sm">
+    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mr-1">Legend</span>
+    {LEGEND_ITEMS.map(({ cls, label, dot }) => (
+      <div key={label} className="flex items-center gap-2">
+        {/* Mini seat swatch using the real CSS class */}
+        <div className={`${cls} !w-6 !h-6 !text-[8px] !rounded-md !shadow-none pointer-events-none select-none`}>
+          <span className="opacity-0">0</span>
+        </div>
+        <span className="text-xs font-medium text-foreground/80">{label}</span>
+      </div>
+    ))}
   </div>
 );
-
-export const SeatLegend = () => {
-  return (
-    <div className="flex flex-wrap gap-6 p-4 bg-gradient-to-r from-muted/60 via-muted/40 to-muted/60 rounded-xl border border-border/50">
-      <LegendItem 
-        gradientFrom="hsl(142 70% 92%)" 
-        gradientTo="hsl(142 60% 85%)"
-        borderColor="border-emerald-400/80"
-        label="Available" 
-      />
-      <LegendItem 
-        gradientFrom="hsl(210 90% 55%)" 
-        gradientTo="hsl(210 85% 45%)"
-        borderColor="border-blue-500"
-        label="Selected"
-        glow="shadow-md shadow-blue-400/30"
-      />
-      <LegendItem 
-        gradientFrom="hsl(215 10% 88%)" 
-        gradientTo="hsl(215 10% 82%)"
-        borderColor="border-gray-300"
-        label="Booked" 
-      />
-      <LegendItem 
-        gradientFrom="hsl(38 90% 90%)" 
-        gradientTo="hsl(38 80% 82%)"
-        borderColor="border-amber-400/80"
-        label="Locked" 
-      />
-    </div>
-  );
-};

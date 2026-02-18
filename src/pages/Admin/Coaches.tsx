@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { API_BASE } from "@/lib/api";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -94,7 +94,7 @@ export default function AdminCoaches() {
         }
 
         try {
-            const res = await fetch(`${API_BASE}/coaches/${coachId}`, {
+            const res = await fetch(`${API_BASE}/trains/coaches/${coachId}`, {
                 method: "DELETE",
             });
             
@@ -116,6 +116,9 @@ export default function AdminCoaches() {
     // Helper to get coach type display name
     const getCoachTypeLabel = (type: string) => {
         const labels: Record<string, string> = {
+            'ENG': 'Engine (ENG)',
+            'PCL': 'Parcel Van (PCL)',
+            'GEN': 'General / Unreserved (GEN)',
             'SL': 'Sleeper (SL)',
             '1A': 'First AC (1A)',
             '2A': 'Second AC (2A)',
@@ -133,6 +136,9 @@ export default function AdminCoaches() {
     // Helper to get default capacity for coach type
     const getDefaultCapacity = (type: string) => {
         const capacities: Record<string, number> = {
+            'ENG': 0,
+            'PCL': 0,
+            'GEN': 0,
             'SL': 72,
             '1A': 18,
             '2A': 54,
@@ -183,17 +189,68 @@ export default function AdminCoaches() {
                                     {train.coaches?.map((coach: any) => (
                                         <div
                                             key={coach.coach_id}
-                                            className="p-3 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border border-slate-200 flex flex-col items-center justify-center text-center group relative hover:shadow-md transition-all"
+                                            className={`p-3 rounded-xl border flex flex-col items-center justify-center text-center group relative hover:shadow-md transition-all ${
+                                                coach.coach_type === 'ENG'
+                                                    ? 'bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600'
+                                                    : coach.coach_type === 'PCL'
+                                                    ? 'bg-gradient-to-br from-amber-50 to-amber-100 border-amber-300'
+                                                    : coach.coach_type === 'GEN'
+                                                    ? 'bg-gradient-to-br from-gray-100 to-gray-200 border-gray-400'
+                                                    : 'bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200'
+                                            }`}
                                         >
-                                            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
-                                                {coach.coach_type}
-                                            </div>
-                                            <div className="text-lg font-black text-slate-800">
-                                                {coach.coach_number}
-                                            </div>
-                                            <div className="text-[10px] text-slate-400 font-medium">
-                                                {coach.capacity || coach.total_seats || 0} Seats
-                                            </div>
+                                            {coach.coach_type === 'ENG' ? (
+                                                <>
+                                                    <div className="text-2xl mb-1">🚂</div>
+                                                    <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                                                        ENGINE
+                                                    </div>
+                                                    <div className="text-lg font-black text-white">
+                                                        {coach.coach_number}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-400 font-medium">
+                                                        No Seats
+                                                    </div>
+                                                </>
+                                            ) : coach.coach_type === 'PCL' ? (
+                                                <>
+                                                    <div className="text-2xl mb-1">📦</div>
+                                                    <div className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-1">
+                                                        PARCEL
+                                                    </div>
+                                                    <div className="text-lg font-black text-amber-900">
+                                                        {coach.coach_number}
+                                                    </div>
+                                                    <div className="text-[10px] text-amber-600 font-medium">
+                                                        No Seats
+                                                    </div>
+                                                </>
+                                            ) : coach.coach_type === 'GEN' ? (
+                                                <>
+                                                    <div className="text-2xl mb-1">🚃</div>
+                                                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
+                                                        GENERAL
+                                                    </div>
+                                                    <div className="text-lg font-black text-gray-700">
+                                                        {coach.coach_number}
+                                                    </div>
+                                                    <div className="text-[10px] text-gray-400 font-medium">
+                                                        Unreserved
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                                        {coach.coach_type}
+                                                    </div>
+                                                    <div className="text-lg font-black text-slate-800">
+                                                        {coach.coach_number}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-400 font-medium">
+                                                        {coach.capacity || 0} Seats
+                                                    </div>
+                                                </>
+                                            )}
                                             {/* Delete button - shows on hover */}
                                             <button
                                                 onClick={() => handleDeleteCoach(coach.coach_id, coach.coach_number)}
@@ -252,6 +309,9 @@ export default function AdminCoaches() {
                                                     <SelectValue placeholder="Select type" />
                                                 </SelectTrigger>
                                                 <SelectContent>
+                                                    <SelectItem value="ENG">🚂 Engine (ENG) — not bookable</SelectItem>
+                                                    <SelectItem value="PCL">📦 Parcel Van (PCL) — not bookable</SelectItem>
+                                                    <SelectItem value="GEN">🚃 General / Unreserved (GEN) — not bookable</SelectItem>
                                                     <SelectItem value="SL">Sleeper (SL) - 72 seats</SelectItem>
                                                     <SelectItem value="1A">First AC (1A) - 18 seats</SelectItem>
                                                     <SelectItem value="2A">Second AC (2A) - 54 seats</SelectItem>

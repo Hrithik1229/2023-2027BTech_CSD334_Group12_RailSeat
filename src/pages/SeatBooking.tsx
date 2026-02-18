@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { SeatType as BerthType, CoachLayout, CoachRow, Seat as SeatType } from '@/data/coachLayouts';
 import { API_BASE, getStoredUser } from '@/lib/api';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, ArrowLeft } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, MapPin, Train } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -113,24 +113,30 @@ const SeatBooking = () => {
         if (!response.ok) throw new Error('Failed to fetch train details');
         
         const data = await response.json();
-        
+
+        // Filter out non-passenger coaches — they have no seats and are not bookable
+        const NON_PASSENGER = ['ENG', 'PCL', 'GEN'];
+        const bookableCoaches = (data.coaches || []).filter(
+          (c: any) => !NON_PASSENGER.includes(String(c.coach_type).toUpperCase())
+        );
+
         const trainData = {
             id: data.train_id.toString(),
             number: data.train_number,
             name: data.train_name,
-            coaches: data.coaches.map((c: any) => c.coach_number)
+            coaches: bookableCoaches.map((c: any) => c.coach_number)
         };
 
         const layouts: Record<string, CoachLayout> = {};
-        data.coaches.forEach((c: any) => {
+        bookableCoaches.forEach((c: any) => {
             layouts[c.coach_number] = transformCoachToLayout(c);
         });
 
         setTrain(trainData);
         setCoachLayouts(layouts);
-        
-        if (data.coaches.length > 0) {
-            setSelectedCoach(data.coaches[0].coach_number);
+
+        if (bookableCoaches.length > 0) {
+            setSelectedCoach(bookableCoaches[0].coach_number);
         }
 
       } catch (error) {
@@ -265,36 +271,60 @@ const SeatBooking = () => {
       />
 
       {/* Journey Info Bar */}
-      <div className="bg-gradient-to-r from-primary to-blue-700 text-white shadow-xl relative overflow-hidden">
-        <div className="absolute inset-0 bg-white/5 opacity-50 pattern-grid-lg"></div>
-        <div className="container mx-auto px-6 py-6 relative z-10">
+      <div className="bg-gradient-to-r from-slate-900 via-primary to-blue-800 text-white shadow-2xl relative overflow-hidden">
+        {/* Decorative background elements */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 left-1/4 w-64 h-64 rounded-full bg-white blur-3xl" />
+          <div className="absolute bottom-0 right-1/4 w-48 h-48 rounded-full bg-blue-300 blur-3xl" />
+        </div>
+        {/* Subtle grid pattern */}
+        <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+
+        <div className="container mx-auto px-6 py-5 relative z-10">
           <div className="flex flex-wrap items-center justify-between gap-6">
-            <div className="flex flex-col gap-1">
+            {/* Train info */}
+            <div className="flex flex-col gap-2">
               <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-bold font-display tracking-tight text-white">{train.name}</h1>
-                  <span className="px-2 py-0.5 rounded-full bg-white/20 text-xs font-medium border border-white/20">#{train.number}</span>
+                <div className="p-2 bg-white/10 rounded-xl backdrop-blur-sm border border-white/10">
+                  <Train className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold tracking-tight text-white leading-none">{train.name}</h1>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs text-blue-200 font-medium">#{train.number}</span>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-blue-100 text-sm font-medium">
-                  <span className="opacity-80">Departure</span>
-                  <span>•</span>
-                  <span>{date}</span>
+              <div className="flex items-center gap-2 ml-1">
+                <CalendarDays className="w-3.5 h-3.5 text-blue-300" />
+                <span className="text-sm text-blue-100 font-medium">{date}</span>
               </div>
             </div>
-            
-            <div className="flex items-center gap-6 bg-white/10 px-6 py-3 rounded-xl backdrop-blur-sm border border-white/10">
-               <div className="flex flex-col">
-                   <span className="text-xs text-blue-200 uppercase tracking-wider font-semibold">From</span>
-                   <span className="font-bold text-lg">{source}</span>
-               </div>
-               <div className="flex items-center px-4">
-                   <div className="w-16 h-0.5 bg-gradient-to-r from-transparent via-white/50 to-transparent relative">
-                       <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-white"></div>
-                   </div>
-               </div>
-               <div className="flex flex-col text-right">
-                   <span className="text-xs text-blue-200 uppercase tracking-wider font-semibold">To</span>
-                   <span className="font-bold text-lg">{destination}</span>
-               </div>
+
+            {/* Route display */}
+            <div className="flex items-center gap-4 bg-white/10 px-6 py-4 rounded-2xl backdrop-blur-sm border border-white/15 shadow-inner">
+              <div className="flex flex-col items-center">
+                <MapPin className="w-4 h-4 text-blue-300 mb-1" />
+                <span className="text-[10px] text-blue-300 uppercase tracking-widest font-semibold">From</span>
+                <span className="font-bold text-lg text-white mt-0.5">{source}</span>
+              </div>
+
+              <div className="flex flex-col items-center gap-1 px-2">
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-white/60" />
+                  <div className="w-12 h-0.5 bg-gradient-to-r from-white/40 via-white/80 to-white/40" />
+                  <ArrowRight className="w-4 h-4 text-white" />
+                  <div className="w-12 h-0.5 bg-gradient-to-r from-white/40 via-white/80 to-white/40" />
+                  <div className="w-2 h-2 rounded-full bg-white/60" />
+                </div>
+                <span className="text-[9px] text-white/40 uppercase tracking-widest">Journey</span>
+              </div>
+
+              <div className="flex flex-col items-center">
+                <MapPin className="w-4 h-4 text-emerald-300 mb-1" />
+                <span className="text-[10px] text-blue-300 uppercase tracking-widest font-semibold">To</span>
+                <span className="font-bold text-lg text-white mt-0.5">{destination}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -338,9 +368,9 @@ const SeatBooking = () => {
               className="grid lg:grid-cols-3 gap-8"
             >
               {/* Left Panel - Coach Selection & Seat Map */}
-              <div className="lg:col-span-2 space-y-6">
+              <div className="lg:col-span-2 space-y-5">
                 {/* Coach Selector */}
-                <div className="glass-card p-6">
+                <div className="bg-card rounded-2xl border border-border shadow-sm p-5">
                   <CoachSelector
                     coaches={train.coaches}
                     selectedCoach={selectedCoach}
@@ -350,14 +380,22 @@ const SeatBooking = () => {
 
                 {/* Seat Map */}
                 {currentCoach && (
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <h2 className="font-display text-xl font-semibold text-foreground">
-                        Coach {selectedCoach} - {currentCoach.type === 'sleeper' ? 'Sleeper Class' : currentCoach.type === 'ac' ? 'AC 2-Tier' : 'Chair Car'}
-                      </h2>
-                      <span className="text-sm text-muted-foreground">
-                        {currentCoach.totalSeats} seats
-                      </span>
+                  <div className="space-y-3">
+                    {/* Coach header */}
+                    <div className="flex items-center justify-between px-1">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-6 rounded-full bg-gradient-to-b from-primary to-blue-600" />
+                        <h2 className="font-bold text-lg text-foreground">
+                          Coach {selectedCoach}
+                        </h2>
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/15">
+                          {currentCoach.type === 'sleeper' ? 'Sleeper' : currentCoach.type === 'ac' ? 'AC Tier' : 'Chair Car'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted rounded-full">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-xs font-medium text-muted-foreground">{currentCoach.totalSeats} seats</span>
+                      </div>
                     </div>
                     <SeatMap
                       coach={currentCoach}

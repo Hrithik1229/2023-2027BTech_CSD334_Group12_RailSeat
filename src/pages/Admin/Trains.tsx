@@ -14,6 +14,7 @@ interface TrainItem {
     train_id: number;
     train_number: string;
     train_name: string;
+    train_type?: string;
     status: "active" | "inactive";
     active_days?: string | null;
     runs?: {
@@ -32,6 +33,7 @@ export default function AdminTrains() {
     const [newTrain, setNewTrain] = useState({
         train_number: "",
         train_name: "",
+        train_type: "Express" as string,
         active_days: DAY_OPTIONS.join(","),
         status: "active" as "active" | "inactive",
     });
@@ -76,6 +78,7 @@ export default function AdminTrains() {
             setNewTrain({
                 train_number: "",
                 train_name: "",
+                train_type: "Express",
                 active_days: DAY_OPTIONS.join(","),
                 status: "active",
             });
@@ -123,7 +126,7 @@ export default function AdminTrains() {
                 <CardContent>
                     <form
                         onSubmit={handleCreateTrain}
-                        className="grid gap-4 md:grid-cols-[1.2fr,2fr,1.4fr,0.8fr,auto]"
+                        className="grid gap-4 md:grid-cols-[1.2fr,2fr,1fr,1.4fr,0.8fr,auto]"
                     >
                         <div>
                             <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">
@@ -148,6 +151,28 @@ export default function AdminTrains() {
                                     setNewTrain((prev) => ({ ...prev, train_name: e.target.value }))
                                 }
                             />
+                        </div>
+                        <div>
+                            <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">
+                                Train Type
+                            </label>
+                            <Select
+                                value={newTrain.train_type}
+                                onValueChange={(value) =>
+                                    setNewTrain((prev) => ({ ...prev, train_type: value }))
+                                }
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Superfast">Superfast</SelectItem>
+                                    <SelectItem value="Express">Express</SelectItem>
+                                    <SelectItem value="Mail">Mail</SelectItem>
+                                    <SelectItem value="Passenger">Passenger</SelectItem>
+                                    <SelectItem value="Local">Local</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div>
                             <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">
@@ -270,24 +295,39 @@ export default function AdminTrains() {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex flex-col items-start md:items-end gap-1 text-xs">
-                                        <div className="flex items-center gap-2">
-                                            <span
-                                                className={cn(
-                                                    "px-2 py-1 rounded-full font-semibold",
-                                                    train.status === "active"
-                                                        ? "bg-emerald-50 text-emerald-700"
-                                                        : "bg-slate-100 text-slate-500"
+                                        <div className="flex flex-col items-start md:items-end gap-1 text-xs">
+                                            <div className="flex items-center gap-2">
+                                                {train.train_type && (
+                                                    <span className={cn(
+                                                        "px-2 py-1 rounded-full font-semibold",
+                                                        train.train_type === 'Superfast' ? 'bg-orange-50 text-orange-700' :
+                                                        train.train_type === 'Express'   ? 'bg-blue-50 text-blue-700' :
+                                                        train.train_type === 'Mail'      ? 'bg-purple-50 text-purple-700' :
+                                                        train.train_type === 'Passenger' ? 'bg-slate-100 text-slate-600' :
+                                                                                           'bg-green-50 text-green-700'
+                                                    )}>
+                                                        {train.train_type === 'Superfast' ? '⚡' :
+                                                         train.train_type === 'Express'   ? '🚄' :
+                                                         train.train_type === 'Mail'      ? '📬' :
+                                                         train.train_type === 'Passenger' ? '🚃' : '🏙️'} {train.train_type}
+                                                    </span>
                                                 )}
-                                            >
-                                                {train.status === "active" ? "Active" : "Inactive"}
-                                            </span>
-                                            {train.active_days && (
-                                                <span className="text-[11px] text-slate-500">
-                                                    Days: {train.active_days}
+                                                <span
+                                                    className={cn(
+                                                        "px-2 py-1 rounded-full font-semibold",
+                                                        train.status === "active"
+                                                            ? "bg-emerald-50 text-emerald-700"
+                                                            : "bg-slate-100 text-slate-500"
+                                                    )}
+                                                >
+                                                    {train.status === "active" ? "Active" : "Inactive"}
                                                 </span>
-                                            )}
-                                        </div>
+                                                {train.active_days && (
+                                                    <span className="text-[11px] text-slate-500">
+                                                        Days: {train.active_days}
+                                                    </span>
+                                                )}
+                                            </div>
                                         {train.runs && train.runs.length > 0 && (
                                             <div className="hidden md:flex flex-wrap gap-2 text-[11px] text-slate-500">
                                                 {train.runs.slice(0, 3).map((run) => (

@@ -1,7 +1,7 @@
 import { CoachLayout, Seat as SeatType } from '@/data/coachLayouts';
+import { cn } from '@/lib/utils';
 import { Seat } from './Seat';
 import { SeatLegend } from './SeatLegend';
-import { cn } from '@/lib/utils';
 
 interface SeatMapProps {
   coach: CoachLayout;
@@ -34,200 +34,198 @@ export const SeatMap = ({ coach, selectedSeats, onSeatSelect }: SeatMapProps) =>
     selectedSeats.some(s => s.id === seat.id);
 
   const renderSleeperLayout = () => {
-    const compartments: JSX.Element[] = [];
-    
-    for (let i = 0; i < coach.rows.length; i += 2) {
-      const mainRow = coach.rows[i];
-      const sideRow = coach.rows[i + 1];
-      const compartmentNum = Math.floor(i / 2) + 1;
-      
-      compartments.push(
-        <div key={compartmentNum} className="relative">
-          {compartmentNum > 1 && <CompartmentDivider />}
-          
-          {/* Compartment container */}
-          <div className="bg-gradient-to-r from-muted/30 via-transparent to-muted/30 rounded-xl p-4 border border-border/30">
-            <div className="flex items-start gap-3">
-              {/* Left berths with labels */}
-              <div className="flex items-center gap-1">
-                <div className="flex flex-col gap-1 text-right pr-1">
-                  <BerthLabel label="UB" position="left" />
-                  <BerthLabel label="MB" position="left" />
-                  <BerthLabel label="LB" position="left" />
+    const compartmentCount = Math.floor(coach.rows.length / 2);
+
+    return (
+      <div className="space-y-3">
+        {/* Column headers */}
+        <div className="flex items-center gap-2 pb-3 border-b border-border">
+          <div className="w-16" />{/* compartment label space */}
+          <div className="flex gap-2">
+            {['LOWER', 'MIDDLE', 'UPPER'].map(col => (
+              <div key={col} className="w-11 h-6 rounded-md bg-amber-50 border border-amber-200 flex items-center justify-center">
+                <span className="text-[9px] font-bold text-amber-700">{col}</span>
+              </div>
+            ))}
+          </div>
+          <div className="w-8" />
+          <div className="w-11 h-6 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center">
+            <span className="text-[9px] font-bold text-slate-500">SIDE</span>
+          </div>
+        </div>
+
+        {/* Compartments */}
+        {Array.from({ length: compartmentCount }).map((_, ci) => {
+          const mainRow = coach.rows[ci * 2];
+          const sideRow = coach.rows[ci * 2 + 1];
+          if (!mainRow) return null;
+
+          const seats = mainRow.seats;
+          const row1 = [seats[0], seats[1], seats[2]];
+          const row2 = [seats[3], seats[4], seats[5]];
+          const sl = sideRow?.seats.find(s => s.type === 'side-lower') ?? sideRow?.seats[0];
+          const su = sideRow?.seats.find(s => s.type === 'side-upper') ?? sideRow?.seats[1];
+
+          return (
+            <div
+              key={ci}
+              className="rounded-xl border border-border bg-card shadow-sm overflow-hidden"
+            >
+              {/* Compartment header */}
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/40 border-b border-border">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                  Compartment
+                </span>
+                <span className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary">
+                  {ci + 1}
+                </span>
+              </div>
+
+              {/* Row 1 — Lower berth row */}
+              <div className="flex items-center gap-2 px-3 py-2.5 bg-muted/10">
+                <div className="w-10 text-right">
+                  <span className="text-[9px] font-semibold text-muted-foreground uppercase">Row 1</span>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  {mainRow.seats.slice(0, 3).reverse().map(seat => (
-                    <Seat
-                      key={seat.id}
-                      seat={seat}
-                      onSelect={onSeatSelect}
-                      isSelected={isSeatSelected(seat)}
-                    />
+                <div className="flex gap-2">
+                  {row1.map(seat => seat && (
+                    <Seat key={seat.id} seat={seat} onSelect={onSeatSelect} isSelected={isSeatSelected(seat)} />
                   ))}
                 </div>
-              </div>
-              
-              {/* Aisle with window indicator */}
-              <div className="flex flex-col items-center justify-center px-3 py-2">
-                <div className="w-12 h-8 rounded-md bg-gradient-to-b from-sky-100 to-sky-200 border border-sky-300/50 flex items-center justify-center mb-2">
-                  <span className="text-[8px] text-sky-600 font-medium">WINDOW</span>
+                <div className="w-8 flex items-center justify-center">
+                  <div className="w-px h-8 bg-border" />
                 </div>
-                <div className="flex-1 w-px bg-gradient-to-b from-border via-border/50 to-border" />
-                <div className="text-[10px] text-muted-foreground mt-1">Aisle</div>
-              </div>
-              
-              {/* Right berths with labels */}
-              <div className="flex items-center gap-1">
-                <div className="flex flex-col gap-1.5">
-                  {mainRow.seats.slice(3).reverse().map(seat => (
-                    <Seat
-                      key={seat.id}
-                      seat={seat}
-                      onSelect={onSeatSelect}
-                      isSelected={isSeatSelected(seat)}
-                    />
-                  ))}
-                </div>
-                <div className="flex flex-col gap-1 text-left pl-1">
-                  <BerthLabel label="UB" position="right" />
-                  <BerthLabel label="MB" position="right" />
-                  <BerthLabel label="LB" position="right" />
+                <div className="w-11">
+                  {sl && <Seat key={sl.id} seat={sl} onSelect={onSeatSelect} isSelected={isSeatSelected(sl)} />}
                 </div>
               </div>
 
-              {/* Side berths */}
-              {sideRow && (
-                <div className="ml-auto flex items-center gap-1 pl-4 border-l border-border/50">
-                  <div className="flex flex-col gap-1.5">
-                    {sideRow.seats.map(seat => (
-                      <Seat
-                        key={seat.id}
-                        seat={seat}
-                        onSelect={onSeatSelect}
-                        isSelected={isSeatSelected(seat)}
-                      />
-                    ))}
-                  </div>
-                  <div className="flex flex-col gap-1 text-left pl-1">
-                    <BerthLabel label="SU" position="right" />
-                    <BerthLabel label="SL" position="right" />
-                  </div>
+              {/* Thin inner divider */}
+              <div className="mx-3 border-t border-dashed border-border/50" />
+
+              {/* Row 2 — Upper berth row */}
+              <div className="flex items-center gap-2 px-3 py-2.5">
+                <div className="w-10 text-right">
+                  <span className="text-[9px] font-semibold text-muted-foreground uppercase">Row 2</span>
                 </div>
-              )}
+                <div className="flex gap-2">
+                  {row2.map(seat => seat && (
+                    <Seat key={seat.id} seat={seat} onSelect={onSeatSelect} isSelected={isSeatSelected(seat)} />
+                  ))}
+                </div>
+                <div className="w-8 flex items-center justify-center">
+                  <div className="w-px h-8 bg-border" />
+                </div>
+                <div className="w-11">
+                  {su && <Seat key={su.id} seat={su} onSelect={onSeatSelect} isSelected={isSeatSelected(su)} />}
+                </div>
+              </div>
             </div>
-            
-            {/* Compartment number */}
-            <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-              <span className="text-[9px] font-bold text-primary">{compartmentNum}</span>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    
-    return <div className="space-y-1">{compartments}</div>;
+          );
+        })}
+      </div>
+    );
   };
 
   const renderACLayout = () => {
-    const compartments: JSX.Element[] = [];
-    
-    for (let i = 0; i < coach.rows.length; i += 2) {
-      const mainRow = coach.rows[i];
-      const sideRow = coach.rows[i + 1];
-      const compartmentNum = Math.floor(i / 2) + 1;
-      
-      compartments.push(
-        <div key={compartmentNum} className="relative">
-          {compartmentNum > 1 && <CompartmentDivider />}
-          
-          {/* Compartment container with AC styling */}
-          <div className="bg-gradient-to-r from-blue-50/50 via-white to-blue-50/50 rounded-xl p-4 border border-blue-200/40 shadow-sm">
-            <div className="flex items-start gap-3">
-              {/* Left berths */}
-              <div className="flex items-center gap-1">
-                <div className="flex flex-col gap-1 text-right pr-1">
-                  <BerthLabel label="UB" position="left" />
-                  <BerthLabel label="LB" position="left" />
+    const compartmentCount = Math.floor(coach.rows.length / 2);
+
+    return (
+      <div className="space-y-3">
+        {/* Column headers */}
+        <div className="flex items-center gap-2 pb-3 border-b border-border">
+          <div className="w-16" />
+          <div className="flex gap-2">
+            {['LOWER', 'UPPER'].map(col => (
+              <div key={col} className="w-11 h-6 rounded-md bg-blue-50 border border-blue-200 flex items-center justify-center">
+                <span className="text-[9px] font-bold text-blue-700">{col}</span>
+              </div>
+            ))}
+          </div>
+          <div className="w-8" />
+          <div className="w-11 h-6 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center">
+            <span className="text-[9px] font-bold text-slate-500">SIDE</span>
+          </div>
+        </div>
+
+        {/* Compartments */}
+        {Array.from({ length: compartmentCount }).map((_, ci) => {
+          const mainRow = coach.rows[ci * 2];
+          const sideRow = coach.rows[ci * 2 + 1];
+          if (!mainRow) return null;
+
+          const seats = mainRow.seats;
+          const row1 = [seats[0], seats[1]];
+          const row2 = [seats[2], seats[3]];
+          const sl = sideRow?.seats.find(s => s.type === 'side-lower') ?? sideRow?.seats[0];
+          const su = sideRow?.seats.find(s => s.type === 'side-upper') ?? sideRow?.seats[1];
+
+          return (
+            <div
+              key={ci}
+              className="rounded-xl border border-border bg-card shadow-sm overflow-hidden"
+            >
+              {/* Compartment header */}
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/40 border-b border-border">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                  Compartment
+                </span>
+                <span className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary">
+                  {ci + 1}
+                </span>
+              </div>
+
+              {/* Row 1 — Lower berth row */}
+              <div className="flex items-center gap-2 px-3 py-2.5 bg-muted/10">
+                <div className="w-10 text-right">
+                  <span className="text-[9px] font-semibold text-muted-foreground uppercase">Row 1</span>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  {mainRow.seats.slice(0, 2).reverse().map(seat => (
-                    <Seat
-                      key={seat.id}
-                      seat={seat}
-                      onSelect={onSeatSelect}
-                      isSelected={isSeatSelected(seat)}
-                    />
+                <div className="flex gap-2">
+                  {row1.map(seat => seat && (
+                    <Seat key={seat.id} seat={seat} onSelect={onSeatSelect} isSelected={isSeatSelected(seat)} />
                   ))}
                 </div>
-              </div>
-              
-              {/* Aisle with AC indicator */}
-              <div className="flex flex-col items-center justify-center px-4 py-2">
-                <div className="w-14 h-6 rounded-full bg-gradient-to-r from-blue-400 to-blue-500 flex items-center justify-center shadow-inner mb-2">
-                  <span className="text-[8px] text-white font-bold tracking-wider">AC</span>
+                <div className="w-8 flex items-center justify-center">
+                  <div className="w-px h-8 bg-border" />
                 </div>
-                <div className="flex-1 w-px bg-gradient-to-b from-blue-200 via-blue-100 to-blue-200" />
-              </div>
-              
-              {/* Right berths */}
-              <div className="flex items-center gap-1">
-                <div className="flex flex-col gap-1.5">
-                  {mainRow.seats.slice(2).reverse().map(seat => (
-                    <Seat
-                      key={seat.id}
-                      seat={seat}
-                      onSelect={onSeatSelect}
-                      isSelected={isSeatSelected(seat)}
-                    />
-                  ))}
-                </div>
-                <div className="flex flex-col gap-1 text-left pl-1">
-                  <BerthLabel label="UB" position="right" />
-                  <BerthLabel label="LB" position="right" />
+                <div className="w-11">
+                  {sl && <Seat key={sl.id} seat={sl} onSelect={onSeatSelect} isSelected={isSeatSelected(sl)} />}
                 </div>
               </div>
 
-              {/* Side berths */}
-              {sideRow && (
-                <div className="ml-auto flex items-center gap-1 pl-4 border-l border-blue-200/50">
-                  <div className="flex flex-col gap-1.5">
-                    {sideRow.seats.map(seat => (
-                      <Seat
-                        key={seat.id}
-                        seat={seat}
-                        onSelect={onSeatSelect}
-                        isSelected={isSeatSelected(seat)}
-                      />
-                    ))}
-                  </div>
-                  <div className="flex flex-col gap-1 text-left pl-1">
-                    <BerthLabel label="SU" position="right" />
-                    <BerthLabel label="SL" position="right" />
-                  </div>
+              <div className="mx-3 border-t border-dashed border-border/50" />
+
+              {/* Row 2 — Upper berth row */}
+              <div className="flex items-center gap-2 px-3 py-2.5">
+                <div className="w-10 text-right">
+                  <span className="text-[9px] font-semibold text-muted-foreground uppercase">Row 2</span>
                 </div>
-              )}
+                <div className="flex gap-2">
+                  {row2.map(seat => seat && (
+                    <Seat key={seat.id} seat={seat} onSelect={onSeatSelect} isSelected={isSeatSelected(seat)} />
+                  ))}
+                </div>
+                <div className="w-8 flex items-center justify-center">
+                  <div className="w-px h-8 bg-border" />
+                </div>
+                <div className="w-11">
+                  {su && <Seat key={su.id} seat={su} onSelect={onSeatSelect} isSelected={isSeatSelected(su)} />}
+                </div>
+              </div>
             </div>
-            
-            {/* Compartment number */}
-            <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-blue-500/20 border border-blue-400/30 flex items-center justify-center">
-              <span className="text-[9px] font-bold text-blue-600">{compartmentNum}</span>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    
-    return <div className="space-y-1">{compartments}</div>;
+          );
+        })}
+      </div>
+    );
   };
 
   const renderChairCarLayout = () => (
-    <div className="space-y-0.5">
+    <div className="space-y-2">
       {/* Column headers */}
-      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border">
-        <div className="w-8" />
-        <div className="flex gap-1.5">
+      <div className="flex items-center gap-2 pb-3 border-b border-border">
+        <div className="w-8" />{/* row number space */}
+        <div className="flex gap-2">
           {['A', 'B', 'C'].map(col => (
-            <div key={col} className="w-11 h-6 rounded-md bg-emerald-100 border border-emerald-200 flex items-center justify-center">
+            <div key={col} className="w-11 h-6 rounded-md bg-emerald-50 border border-emerald-200 flex items-center justify-center">
               <span className="text-xs font-bold text-emerald-700">{col}</span>
             </div>
           ))}
@@ -235,31 +233,33 @@ export const SeatMap = ({ coach, selectedSeats, onSeatSelect }: SeatMapProps) =>
         <div className="w-10 flex items-center justify-center">
           <div className="px-2 py-1 bg-muted rounded text-[9px] font-medium text-muted-foreground">AISLE</div>
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex gap-2">
           {['D', 'E'].map(col => (
-            <div key={col} className="w-11 h-6 rounded-md bg-emerald-100 border border-emerald-200 flex items-center justify-center">
+            <div key={col} className="w-11 h-6 rounded-md bg-emerald-50 border border-emerald-200 flex items-center justify-center">
               <span className="text-xs font-bold text-emerald-700">{col}</span>
             </div>
           ))}
         </div>
       </div>
-      
+
       {/* Rows */}
       {coach.rows.map((row, idx) => (
-        <div 
-          key={row.rowNumber} 
+        <div
+          key={row.rowNumber}
           className={cn(
-            "flex items-center gap-2 py-1 px-2 rounded-lg transition-colors",
-            idx % 2 === 0 ? 'bg-muted/20' : 'bg-transparent'
+            "flex items-center gap-2 py-2 px-2 rounded-xl border transition-colors",
+            idx % 2 === 0
+              ? 'bg-muted/20 border-border/60'
+              : 'bg-card border-transparent'
           )}
         >
-          {/* Row number */}
-          <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
+          {/* Row number badge */}
+          <div className="w-6 h-6 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
             <span className="text-[10px] font-bold text-primary">{row.rowNumber}</span>
           </div>
-          
-          {/* Left side (3 seats) */}
-          <div className="flex gap-1.5">
+
+          {/* Left side — 3 seats */}
+          <div className="flex gap-2">
             {row.seats.slice(0, 3).map(seat => (
               <Seat
                 key={seat.id}
@@ -269,14 +269,14 @@ export const SeatMap = ({ coach, selectedSeats, onSeatSelect }: SeatMapProps) =>
               />
             ))}
           </div>
-          
+
           {/* Aisle */}
           <div className="w-10 flex items-center justify-center">
-            <div className="w-0.5 h-8 bg-gradient-to-b from-transparent via-border to-transparent rounded-full" />
+            <div className="w-px h-9 bg-gradient-to-b from-transparent via-border to-transparent" />
           </div>
-          
-          {/* Right side (2 seats) */}
-          <div className="flex gap-1.5">
+
+          {/* Right side — 2 seats */}
+          <div className="flex gap-2">
             {row.seats.slice(3).map(seat => (
               <Seat
                 key={seat.id}
@@ -286,74 +286,63 @@ export const SeatMap = ({ coach, selectedSeats, onSeatSelect }: SeatMapProps) =>
               />
             ))}
           </div>
-          
-          {/* Window indicator for edge rows */}
-          {(idx === 0 || idx === coach.rows.length - 1) && (
-            <div className="ml-2 px-2 py-0.5 bg-sky-100 rounded text-[8px] text-sky-600 font-medium">
-              EXIT
-            </div>
-          )}
         </div>
       ))}
     </div>
   );
 
   const getCoachIcon = () => {
-    switch (coach.type) {
-      case 'sleeper':
-        return (
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-8 bg-gradient-to-b from-amber-400 to-amber-500 rounded-sm" />
-            <span className="text-sm font-medium text-foreground">Sleeper Class</span>
-          </div>
-        );
-      case 'ac':
-        return (
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-8 bg-gradient-to-b from-blue-400 to-blue-600 rounded-sm" />
-            <span className="text-sm font-medium text-foreground">AC 2-Tier</span>
-          </div>
-        );
-      case 'chair':
-        return (
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-8 bg-gradient-to-b from-emerald-400 to-emerald-600 rounded-sm" />
-            <span className="text-sm font-medium text-foreground">Chair Car</span>
-          </div>
-        );
-    }
+    const configs = {
+      sleeper: { label: 'Sleeper Class', text: 'text-amber-900', bg: 'bg-amber-50 border-amber-200' },
+      ac:      { label: 'AC Tier',       text: 'text-blue-900',  bg: 'bg-blue-50 border-blue-200' },
+      chair:   { label: 'Chair Car',     text: 'text-emerald-900', bg: 'bg-emerald-50 border-emerald-200' },
+    };
+    const cfg = configs[coach.type] ?? configs.chair;
+    return (
+      <div className={`flex items-center px-3 py-1.5 rounded-xl border ${cfg.bg}`}>
+        <span className={`text-sm font-bold ${cfg.text}`}>{cfg.label}</span>
+      </div>
+    );
   };
+
 
   return (
     <div className="animate-fade-in">
       <SeatLegend />
-      
-      <div className="mt-6 p-6 bg-card rounded-2xl border border-border shadow-lg overflow-x-auto">
-        {/* Coach header */}
-        <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
+
+      <div className="mt-4 rounded-2xl border border-border shadow-md overflow-hidden">
+        {/* Coach header bar */}
+        <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-muted/80 to-muted/40 border-b border-border">
           {getCoachIcon()}
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground font-medium">
               {coach.totalSeats} seats
             </span>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted rounded-full">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-xs font-medium text-muted-foreground">Live</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-full">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[10px] font-semibold text-emerald-700">Live</span>
             </div>
           </div>
         </div>
-        
-        <div className="min-w-fit">
+
+        {/* Seat layout */}
+        <div className="p-5 bg-card min-w-fit overflow-x-auto">
           {coach.type === 'sleeper' && renderSleeperLayout()}
           {coach.type === 'ac' && renderACLayout()}
           {coach.type === 'chair' && renderChairCarLayout()}
         </div>
-        
-        {/* Coach footer */}
-        <div className="mt-6 pt-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
-          <span>← Entry/Exit</span>
-          <span>Coach {coach.name}</span>
-          <span>Toilet →</span>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-5 py-2.5 bg-muted/30 border-t border-border text-[11px] text-muted-foreground font-medium">
+          <div className="flex items-center gap-1.5">
+            <span className="text-base">🚪</span>
+            <span>Entry / Exit</span>
+          </div>
+          <span className="font-semibold text-foreground/60">Coach {coach.name}</span>
+          <div className="flex items-center gap-1.5">
+            <span>Toilet</span>
+            <span className="text-base">🚽</span>
+          </div>
         </div>
       </div>
     </div>
