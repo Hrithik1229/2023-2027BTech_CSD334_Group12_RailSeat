@@ -270,10 +270,6 @@ const SeatBooking = () => {
          toast.error("Person with Disability quota allows only Lower or Side Lower berths");
          return;
        }
-       if (selectedSeats.length >= 1 && !selectedSeats.some(s => s.id === seat.id)) {
-         toast.error("Person with Disability quota allows only 1 seat");
-         return;
-       }
     }
 
     const isSelected = selectedSeats.some(s => s.id === seat.id);
