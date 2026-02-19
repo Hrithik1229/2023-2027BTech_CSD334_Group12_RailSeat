@@ -1,5 +1,5 @@
 import express from "express";
-import { createReverseRun, updateRoute } from "../controllers/admin.controller.js";
+import { createReverseRun, deleteRoute, updateRoute } from "../controllers/admin.controller.js";
 import {
     addTrainStops,
     calculateJourneyFare,
@@ -44,6 +44,7 @@ router.post("/:id/coaches", createCoach);
 router.post("/runs/:id/stops", addTrainStops);
 router.put("/runs/:id/route", updateRoute);
 router.post("/runs/:id/reverse", createReverseRun);
+router.delete("/runs/:id", deleteRoute);
 router.delete("/coaches/:id", deleteCoach);
 
 export default router;

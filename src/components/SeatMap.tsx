@@ -71,20 +71,12 @@ export const SeatMap = ({ coach, selectedSeats, onSeatSelect }: SeatMapProps) =>
               key={ci}
               className="rounded-xl border border-border bg-card shadow-sm overflow-hidden"
             >
-              {/* Compartment header */}
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/40 border-b border-border">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                  Compartment
-                </span>
-                <span className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary">
-                  {ci + 1}
-                </span>
-              </div>
+
 
               {/* Row 1 — Lower berth row */}
               <div className="flex items-center gap-2 px-3 py-2.5 bg-muted/10">
                 <div className="w-10 text-right">
-                  <span className="text-[9px] font-semibold text-muted-foreground uppercase">Row 1</span>
+                  <span className="text-[9px] font-semibold text-muted-foreground uppercase">Row {ci * 2 + 1}</span>
                 </div>
                 <div className="flex gap-2">
                   {row1.map(seat => seat && (
@@ -105,7 +97,7 @@ export const SeatMap = ({ coach, selectedSeats, onSeatSelect }: SeatMapProps) =>
               {/* Row 2 — Upper berth row */}
               <div className="flex items-center gap-2 px-3 py-2.5">
                 <div className="w-10 text-right">
-                  <span className="text-[9px] font-semibold text-muted-foreground uppercase">Row 2</span>
+                  <span className="text-[9px] font-semibold text-muted-foreground uppercase">Row {ci * 2 + 2}</span>
                 </div>
                 <div className="flex gap-2">
                   {row2.map(seat => seat && (
@@ -164,20 +156,12 @@ export const SeatMap = ({ coach, selectedSeats, onSeatSelect }: SeatMapProps) =>
               key={ci}
               className="rounded-xl border border-border bg-card shadow-sm overflow-hidden"
             >
-              {/* Compartment header */}
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/40 border-b border-border">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                  Compartment
-                </span>
-                <span className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary">
-                  {ci + 1}
-                </span>
-              </div>
+
 
               {/* Row 1 — Lower berth row */}
               <div className="flex items-center gap-2 px-3 py-2.5 bg-muted/10">
                 <div className="w-10 text-right">
-                  <span className="text-[9px] font-semibold text-muted-foreground uppercase">Row 1</span>
+                  <span className="text-[9px] font-semibold text-muted-foreground uppercase">Row {ci * 2 + 1}</span>
                 </div>
                 <div className="flex gap-2">
                   {row1.map(seat => seat && (
@@ -197,7 +181,7 @@ export const SeatMap = ({ coach, selectedSeats, onSeatSelect }: SeatMapProps) =>
               {/* Row 2 — Upper berth row */}
               <div className="flex items-center gap-2 px-3 py-2.5">
                 <div className="w-10 text-right">
-                  <span className="text-[9px] font-semibold text-muted-foreground uppercase">Row 2</span>
+                  <span className="text-[9px] font-semibold text-muted-foreground uppercase">Row {ci * 2 + 2}</span>
                 </div>
                 <div className="flex gap-2">
                   {row2.map(seat => seat && (

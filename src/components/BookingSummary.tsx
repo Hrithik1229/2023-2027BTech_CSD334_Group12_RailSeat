@@ -1,4 +1,11 @@
 import { Button } from '@/components/ui/button';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Seat as SeatType } from '@/data/coachLayouts';
 import { ArrowRight, Ticket, X } from 'lucide-react';
 
@@ -10,7 +17,19 @@ interface BookingSummaryProps {
   onRemoveSeat: (seat: SeatType) => void;
   onConfirm: () => void;
   onChangeCoach: () => void;
+  quota?: string;
+  disabilityType?: string;
+  onDisabilityChange?: (type: string) => void;
 }
+
+const DISABILITY_OPTS = [
+  { id: 'BLIND', label: 'Blind Person', discount: 0.75 },
+  { id: 'ORTHOPEDIC', label: 'Orthopedically Handicapped', discount: 0.75 },
+  { id: 'DEAF_DUMB', label: 'Deaf & Dumb', discount: 0.50 },
+  { id: 'MENTAL', label: 'Mentally Retarded', discount: 0.75 },
+  { id: 'CANCER', label: 'Cancer Patient', discount: 0.50 },
+  { id: 'PATIENT', label: 'Thalassemia/Heart/Kidney', discount: 0.50 },
+];
 
 export const BookingSummary = ({
   trainName,
@@ -20,8 +39,22 @@ export const BookingSummary = ({
   onRemoveSeat,
   onConfirm,
   onChangeCoach,
+  quota,
+  disabilityType,
+  onDisabilityChange,
 }: BookingSummaryProps) => {
-  const totalAmount = selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
+  const baseAmount = selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
+  
+  let concession = 0;
+  let finalAmount = baseAmount;
+
+  if (quota === 'WD' && disabilityType) {
+    const opt = DISABILITY_OPTS.find(o => o.id === disabilityType);
+    if (opt) {
+      concession = Math.round(baseAmount * opt.discount);
+      finalAmount = baseAmount - concession;
+    }
+  }
 
   return (
       <div className="glass-card p-6 h-fit sticky top-24 animate-slide-up border border-white/20 shadow-xl bg-white/70 dark:bg-black/40 backdrop-blur-md rounded-2xl">
@@ -98,6 +131,30 @@ export const BookingSummary = ({
         )}
       </div>
 
+      {/* Disability Selection */}
+      {quota === 'WD' && (
+        <div className="mb-6 p-4 bg-orange-50/50 border border-orange-200 rounded-xl space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-orange-700 uppercase tracking-wider">Disability Type</span>
+          </div>
+          <Select value={disabilityType} onValueChange={onDisabilityChange}>
+            <SelectTrigger className="w-full bg-white border-orange-200 h-9 text-sm">
+              <SelectValue placeholder="Select Category" />
+            </SelectTrigger>
+            <SelectContent>
+              {DISABILITY_OPTS.map(opt => (
+                <SelectItem key={opt.id} value={opt.id}>
+                  {opt.label} ({(opt.discount * 100)}% Off)
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-[10px] text-orange-600/80 leading-tight">
+            *One escort is eligible for the same concession in most cases.
+          </p>
+        </div>
+      )}
+
       {/* Total */}
       <div className="bg-gradient-to-r from-primary/5 to-transparent p-4 rounded-xl mb-6 border border-primary/10">
         <div className="flex items-center justify-between mb-1">
@@ -106,7 +163,14 @@ export const BookingSummary = ({
         </div>
         <div className="flex items-center justify-between">
           <span className="text-lg font-bold text-foreground">Total</span>
-          <span className="text-2xl font-bold text-primary">₹{totalAmount}</span>
+          <div className="text-right">
+             {concession > 0 && (
+                <span className="block text-xs text-muted-foreground line-through decoration-red-500 decoration-2">
+                    ₹{baseAmount}
+                </span>
+             )}
+            <span className="text-2xl font-bold text-primary">₹{finalAmount}</span>
+          </div>
         </div>
       </div>
 

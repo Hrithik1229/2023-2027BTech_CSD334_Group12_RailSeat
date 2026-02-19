@@ -135,8 +135,6 @@ const SearchTrains = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="GN">General</SelectItem>
-                        <SelectItem value="TQ">Tatkal</SelectItem>
-                        <SelectItem value="LD">Ladies</SelectItem>
                         <SelectItem value="SS">Lower Berth /Sr. Citizen</SelectItem>
                         <SelectItem value="WD">Person with Disability</SelectItem>
                       </SelectContent>

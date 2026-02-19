@@ -33,6 +33,8 @@ export default function AdminRouteBuilder() {
   const [isLoading, setIsLoading] = useState(true);
   const [runDetails, setRunDetails] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [showReverseDialog, setShowReverseDialog] = useState(false);
+  const [reverseStartTime, setReverseStartTime] = useState("08:00");
 
   useEffect(() => {
     const fetchRun = async () => {
@@ -154,25 +156,20 @@ export default function AdminRouteBuilder() {
     }
   };
 
-  const handleReverse = async () => {
-    if (
-      !confirm(
-        "Create a reverse run automatically? This will clone this run and reverse direction.",
-      )
-    )
-      return;
+  const executeReverse = async () => {
     try {
-      const res = await fetch(
-        `${API_BASE}/admin/runs/${id}/reverse`,
-        {
-          method: "POST",
-        },
-      );
+      const res = await fetch(`${API_BASE}/trains/runs/${id}/reverse`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ startTime: reverseStartTime }),
+      });
       if (!res.ok) throw new Error("Failed");
       toast.success("Reverse run created!");
       navigate("/admin/runs");
     } catch (error) {
       toast.error("Failed to create reverse run");
+    } finally {
+      setShowReverseDialog(false);
     }
   };
 
@@ -190,7 +187,7 @@ export default function AdminRouteBuilder() {
           <ArrowLeft className="w-4 h-4 mr-2" /> Back
         </Button>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleReverse}>
+          <Button variant="outline" onClick={() => setShowReverseDialog(true)}>
             <Repeat className="w-4 h-4 mr-2" /> Auto Reverse
           </Button>
           <Button onClick={handleSave} disabled={isSaving}>
@@ -198,6 +195,32 @@ export default function AdminRouteBuilder() {
           </Button>
         </div>
       </div>
+
+      {showReverseDialog && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+            <div className="bg-white p-6 rounded-lg shadow-lg w-96 space-y-4">
+                <h3 className="font-bold text-lg">Create Reverse Run</h3>
+                <p className="text-sm text-slate-500">
+                    This will create a new run in the opposite direction.
+                    Please specify the departure time from the new source.
+                </p>
+                <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase block mb-1">
+                        Departure Time
+                    </label>
+                    <Input
+                        type="time"
+                        value={reverseStartTime}
+                        onChange={(e) => setReverseStartTime(e.target.value)}
+                    />
+                </div>
+                <div className="flex justify-end gap-2">
+                    <Button variant="ghost" onClick={() => setShowReverseDialog(false)}>Cancel</Button>
+                    <Button onClick={executeReverse}>Create Run</Button>
+                </div>
+            </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl shadow border border-slate-200 p-6">
         <div className="mb-6">

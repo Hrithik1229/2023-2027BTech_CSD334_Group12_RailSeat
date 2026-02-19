@@ -266,7 +266,11 @@ export const createReverseRun = async (req, res) => {
   const t = await sequelize.transaction(); // Added Transaction
   try {
     const { id } = req.params;
-    const { startTime } = req.body;
+    const { startTime } = req.body || {}; // Expect HH:MM format
+
+    // Parse start time
+    const [startH, startM] = (startTime || "08:00").split(":").map(Number);
+    let currentMinute = startH * 60 + startM;
 
     const originalRun = await TrainRun.findByPk(id, {
       include: [{ model: TrainStop, as: "stops", order: [['stop_order', 'ASC']] }],
@@ -275,8 +279,35 @@ export const createReverseRun = async (req, res) => {
 
     if (!originalRun) throw new Error("Run not found");
 
-    const totalDistance = Math.max(...originalRun.stops.map(s => s.distance_from_source));
+    const stops = originalRun.stops;
+    if (!stops || stops.length < 2) throw new Error("Original run has insufficient stops");
 
+    const totalDistance = Math.max(...stops.map(s => s.distance_from_source));
+
+    // Calculate segment durations from original run
+    // segmentDuration[i] is travel time from stop i to stop i+1
+    const segmentDurations = [];
+    for (let i = 0; i < stops.length - 1; i++) {
+      const currentStop = stops[i];
+      const nextStop = stops[i + 1];
+
+      // Time conversion helper
+      const getMinutes = (timeStr) => {
+        if (!timeStr) return 0;
+        const [h, m] = timeStr.split(":").map(Number);
+        return h * 60 + m;
+      };
+
+      const dep = getMinutes(currentStop.departure_time);
+      const arr = getMinutes(nextStop.arrival_time);
+
+      let duration = arr - dep;
+      if (duration < 0) duration += 24 * 60; // Handle midnight crossing
+
+      segmentDurations.push(duration);
+    }
+
+    // Create new run
     const newRun = await TrainRun.create({
       train_id: originalRun.train_id,
       direction: originalRun.direction === "UP" ? "DOWN" : "UP",
@@ -286,27 +317,129 @@ export const createReverseRun = async (req, res) => {
       status: "active",
     }, { transaction: t });
 
-    // ... (Your segment calculation logic is generally sound)
+    // Build reversed stops
+    const reversedStopsData = [];
+    // Reverse logic: 
+    // New Stop 0 = Old Stop N (Source)
+    // New Stop 1 = Old Stop N-1
+    // ...
+    // New Stop N = Old Stop 0 (Dest)
 
-    const reversedStopsData = originalRun.stops.reverse().map((stop, i) => {
-      // Calculate reverse distance:
-      const revDistance = totalDistance - stop.distance_from_source;
+    const reversedOriginalStops = [...stops].reverse();
 
-      return {
-        run_id: newRun.run_id,
-        station_id: stop.station_id,
-        stop_order: i + 1,
-        // ... (Insert calculated times here)
-        distance_from_source: revDistance
+    // Global time tracker for new run
+    let currentNewTimeMinutes = currentMinute;
+
+    for (let i = 0; i < reversedOriginalStops.length; i++) {
+      const originalStop = reversedOriginalStops[i];
+      const isFirst = i === 0;
+      const isLast = i === reversedOriginalStops.length - 1;
+
+      // Calculate new times
+      let arrivalTime = null;
+      let departureTime = null;
+
+      // Format helper
+      const formatTime = (totalMinutes) => {
+        let m = totalMinutes % (24 * 60);
+        if (m < 0) m += 24 * 60;
+        const hh = Math.floor(m / 60).toString().padStart(2, '0');
+        const mm = (m % 60).toString().padStart(2, '0');
+        return `${hh}:${mm}`;
       };
-    });
+
+      if (isFirst) {
+        // First stop: only departure
+        departureTime = formatTime(currentNewTimeMinutes);
+      } else {
+        // Traveling from previous stop took segmentDuration[reversed_index_of_previous_segment]
+        // The segment connecting Old Stop (i) to Old Stop (i-1) is segmentDurations[stops.length - 1 - i]
+        const travelDuration = segmentDurations[stops.length - 1 - i];
+
+        currentNewTimeMinutes += travelDuration;
+        arrivalTime = formatTime(currentNewTimeMinutes);
+
+        if (!isLast) {
+          // Add halt duration
+          // Use original halt duration of this station? 
+          // Yes, assume halt duration is property of station stop usually.
+          const halt = originalStop.halt_duration || 0;
+          currentNewTimeMinutes += halt;
+          departureTime = formatTime(currentNewTimeMinutes);
+        }
+      }
+
+      reversedStopsData.push({
+        run_id: newRun.run_id,
+        station_id: originalStop.station_id,
+        stop_order: i + 1,
+        arrival_time: arrivalTime,
+        departure_time: departureTime,
+        halt_duration: originalStop.halt_duration,
+        distance_from_source: totalDistance - originalStop.distance_from_source
+      });
+    }
 
     await TrainStop.bulkCreate(reversedStopsData, { transaction: t });
-    await t.commit();
 
-    res.json({ message: "Reverse route created successfully" });
+    // Update basic stats for the run
+    const firstStop_New = reversedStopsData[0];
+    const lastStop_New = reversedStopsData[reversedStopsData.length - 1];
+
+    // Calculate total duration
+    const startMins = currentMinute;
+    const endMins = currentNewTimeMinutes;
+    let totalDurMins = endMins - startMins;
+
+    const h = Math.floor(totalDurMins / 60);
+    const m = totalDurMins % 60;
+
+    await TrainRun.update({
+      departure_time: firstStop_New.departure_time,
+      arrival_time: lastStop_New.arrival_time,
+      duration: `${h}h ${m}m`
+    }, {
+      where: { run_id: newRun.run_id },
+      transaction: t
+    });
+
+    await t.commit();
+    res.json({ message: "Reverse route created successfully", run_id: newRun.run_id });
   } catch (error) {
-    await t.rollback();
+    if (t) await t.rollback();
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Delete Route (Run)
+export const deleteRoute = async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const { id } = req.params;
+
+    // 1. Check if run exists
+    const run = await TrainRun.findByPk(id, { transaction: t });
+    if (!run) {
+      await t.rollback();
+      return res.status(404).json({ error: "Train run not found" });
+    }
+
+    // 2. Delete all stops associated with this run
+    await TrainStop.destroy({
+      where: { run_id: id },
+      transaction: t
+    });
+
+    // 3. Delete the run itself
+    await TrainRun.destroy({
+      where: { run_id: id },
+      transaction: t
+    });
+
+    await t.commit();
+    res.status(204).send();
+  } catch (error) {
+    if (t) await t.rollback();
     res.status(500).json({ error: error.message });
   }
 };

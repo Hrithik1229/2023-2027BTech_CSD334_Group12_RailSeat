@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 const SeatBooking = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { trainId, source, destination, date, isoDate, distance } = location.state || {}; // distance comes from TrainResults
+  const { trainId, source, destination, date, isoDate, distance, quota } = location.state || {}; // distance comes from TrainResults
 
   const [train, setTrain] = useState<any>(null);
   const [coachLayouts, setCoachLayouts] = useState<Record<string, CoachLayout>>({});
@@ -27,6 +27,7 @@ const SeatBooking = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [journeyDistance, setJourneyDistance] = useState<number>(distance || 0);
   const [bookedSeatIds, setBookedSeatIds] = useState<Set<string>>(new Set());
+  const [disabilityType, setDisabilityType] = useState<string>('');
 
   // Map DB berth_type codes → frontend BerthType string union
   const mapBerthType = (berth: string): BerthType => {
@@ -257,6 +258,24 @@ const SeatBooking = () => {
   }, [selectedCoach, train?.id, journeyDistance, rawCoaches.length, bookedSeatIds]);
 
   const handleSeatSelect = (seat: SeatType) => {
+    // Senior Citizen Quota (SS) Validation
+    if (quota === "SS" && !["lower", "side-lower"].includes(seat.type)) {
+      toast.error("Senior Citizen quota allows only Lower or Side Lower berths");
+      return;
+    }
+
+    // PWD Quota (WD) Validation
+    if (quota === "WD") {
+       if (!["lower", "side-lower"].includes(seat.type)) {
+         toast.error("Person with Disability quota allows only Lower or Side Lower berths");
+         return;
+       }
+       if (selectedSeats.length >= 1 && !selectedSeats.some(s => s.id === seat.id)) {
+         toast.error("Person with Disability quota allows only 1 seat");
+         return;
+       }
+    }
+
     const isSelected = selectedSeats.some(s => s.id === seat.id);
     
     if (isSelected) {
@@ -291,6 +310,24 @@ const SeatBooking = () => {
     setIsLoading(true);
     try {
         const user = getStoredUser();
+
+        let finalTotalAmount = selectedSeats.reduce((sum, s) => sum + (s.price || 0), 0);
+        
+        // Calculate Concession for PWD
+        if (quota === 'WD' && disabilityType) {
+             const discounts: Record<string, number> = {
+                'BLIND': 0.75,
+                'ORTHOPEDIC': 0.75,
+                'DEAF_DUMB': 0.50,
+                'MENTAL': 0.75,
+                'CANCER': 0.50, 
+                'PATIENT': 0.50
+            };
+            const discountPct = discounts[disabilityType] || 0;
+            const concession = Math.round(finalTotalAmount * discountPct);
+            finalTotalAmount -= concession;
+        }
+
         const payload = {
             contactName: passengers[0].name,
             email: user?.email ?? passengers[0].name + "@guest.local",
@@ -303,11 +340,13 @@ const SeatBooking = () => {
                 seatId: parseInt(s.id),
                 price: s.price 
             })),
-            totalAmount: selectedSeats.reduce((sum, s) => sum + (s.price || 0), 0),
+            totalAmount: finalTotalAmount,
             passengers: passengers.map(p => ({
                 name: p.name,
                 gender: p.gender
-            }))
+            })),
+            quota: quota, 
+            disabilityType: disabilityType 
         };
 
         const response = await fetch(`${API_BASE}/bookings`, {
@@ -322,13 +361,12 @@ const SeatBooking = () => {
         }
 
         const bookingData = await response.json();
-        const totalAmount = selectedSeats.reduce((sum, s) => sum + s.price, 0);
         
         toast.success(`Booking Confirmed!`, {
             description: (
                 <div className="flex flex-col gap-1">
                     <span className="font-semibold">PNR: {bookingData.booking_number}</span>
-                    <span>Total Amount: ₹{totalAmount}</span>
+                    <span>Total Amount: ₹{finalTotalAmount}</span>
                 </div>
             ),
             duration: 6000,
@@ -522,6 +560,9 @@ const SeatBooking = () => {
                   onRemoveSeat={handleRemoveSeat}
                   onConfirm={handleConfirm}
                   onChangeCoach={handleChangeCoach}
+                  quota={quota}
+                  disabilityType={disabilityType}
+                  onDisabilityChange={setDisabilityType}
                 />
               </div>
             </motion.div>

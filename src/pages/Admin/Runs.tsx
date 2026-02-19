@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { API_BASE } from "@/lib/api";
-import { Map, Plus } from "lucide-react";
+import { Map, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -67,6 +67,25 @@ export default function AdminRuns() {
             toast.error("Failed to create run");
         } finally {
             setCreatingFor(null);
+        }
+    };
+
+    const handleDeleteRun = async (runId: number) => {
+        if (!confirm("Are you sure you want to delete this run? This action cannot be undone.")) return;
+        try {
+            const res = await fetch(`${API_BASE}/trains/runs/${runId}`, {
+                method: "DELETE",
+            });
+            if (!res.ok) throw new Error("Failed to delete run");
+            toast.success("Run deleted successfully");
+
+            // Refresh list
+            const reload = await fetch(`${API_BASE}/trains`);
+            const data = await reload.json();
+            setTrains(data);
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to delete run");
         }
     };
 
@@ -140,6 +159,14 @@ export default function AdminRuns() {
                                                     }
                                                 >
                                                     <Map className="w-3 h-3 mr-2" /> Planner
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-8 text-xs border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                                    onClick={() => handleDeleteRun(run.run_id)}
+                                                >
+                                                    <Trash2 className="w-3 h-3" />
                                                 </Button>
                                             </div>
                                         </div>
