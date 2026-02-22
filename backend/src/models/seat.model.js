@@ -38,6 +38,19 @@ const Seat = sequelize.define("Seat", {
             model: 'coaches', // Use table name string to avoid circular imports
             key: 'coach_id'
         }
+    },
+    status: {
+        type: DataTypes.ENUM('available', 'selected', 'booked', 'locked'),
+        defaultValue: 'available',
+        allowNull: false
+    },
+    locked_by: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
+    lock_expires_at: {
+        type: DataTypes.DATE,
+        allowNull: true
     }
 }, {
     tableName: "seats",

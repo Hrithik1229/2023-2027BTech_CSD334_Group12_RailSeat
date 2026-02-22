@@ -7,14 +7,20 @@ dotenv.config();
 
 const PORT = process.env.PORT || 3000;
 
+import http from 'http';
+import { initSockets } from './sockets.js';
+
 // Initialize database and start server
 const startServer = async () => {
     try {
         // Initialize database
         await initDatabase();
 
+        const server = http.createServer(app);
+        initSockets(server);
+
         // Start server
-        app.listen(PORT, () => {
+        server.listen(PORT, () => {
             console.log(`Server is running on port ${PORT}`);
             console.log(`API endpoints available at http://localhost:${PORT}/api`);
         });
@@ -25,3 +31,4 @@ const startServer = async () => {
 };
 
 startServer();
+// restart

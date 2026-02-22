@@ -1,4 +1,5 @@
 import { Booking, Coach, Passenger, Seat, Train } from "../models/index.js";
+import { getIO } from "../sockets.js";
 
 // Generate unique booking number
 // Generate unique 10-digit booking number
@@ -26,6 +27,7 @@ export const createBooking = async (req, res) => {
       passengers,
       seats, // Expects [{ seatId, price }, ...]
       userId,
+      socketId, // For seat locking validation
       totalAmount: requestTotalAmount // Optional direct total
     } = req.body;
 
@@ -38,6 +40,26 @@ export const createBooking = async (req, res) => {
         if (seatData.price) {
           totalAmount += Number(seatData.price);
         }
+      }
+    }
+
+    if (!socketId) {
+      return res.status(400).json({ error: "Socket ID is required to confirm booking." });
+    }
+
+    const seatIds = seats.map(s => s.seatId);
+    if (seatIds.length > 0) {
+      const lockedSeats = await Seat.findAll({
+        where: { seat_id: seatIds }
+      });
+
+      if (lockedSeats.length !== seatIds.length) {
+        return res.status(400).json({ error: "One or more seats were not found." });
+      }
+
+      const notLockedByMe = lockedSeats.some(s => s.status !== 'locked' || s.locked_by !== socketId);
+      if (notLockedByMe) {
+        return res.status(400).json({ error: "One or more seats are not locked by your session, or your lock has expired." });
       }
     }
 
@@ -72,10 +94,23 @@ export const createBooking = async (req, res) => {
 
     await Promise.all(passengerPromises);
 
-    // NOTE: We do NOT update seat status permanently here
-    // Seat availability is determined by checking bookings for a specific date
-    // The seat.status field is kept as 'available' and getAvailableSeats()
-    // checks bookings by date to determine actual availability
+    // Change seat status from locked -> booked
+    if (seatIds.length > 0) {
+      await Seat.update({
+        status: 'booked',
+        locked_by: null,
+        lock_expires_at: null
+      }, {
+        where: { seat_id: seatIds }
+      });
+
+      try {
+        const io = getIO();
+        io.emit("seats-booked", { seatIds });
+      } catch (e) {
+        console.error("Failed to emit seats-booked overlay", e);
+      }
+    }
 
     // Fetch complete booking with relations
     const completeBooking = await Booking.findByPk(booking.booking_id, {

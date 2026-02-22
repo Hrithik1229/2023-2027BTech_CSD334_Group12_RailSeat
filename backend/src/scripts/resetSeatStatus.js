@@ -20,7 +20,7 @@ const resetSeatStatuses = async () => {
         console.log('Resetting all seat statuses to "available"...');
 
         const [updatedCount] = await Seat.update(
-            { status: 'available' },
+            { status: 'available', locked_by: null, lock_expires_at: null },
             { where: {} }
         );
 

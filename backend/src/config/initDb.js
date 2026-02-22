@@ -7,7 +7,7 @@ export const initDatabase = async () => {
         // Sync all models with database
         // force: false - won't drop existing tables
         // alter: true - will alter tables to match models
-        await sequelize.sync({ alter: true });
+        await sequelize.sync({ alter: false });
         console.log("Database models synchronized successfully.");
 
         // Check if we need to seed initial data

@@ -1,18 +1,18 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select';
 import { Seat } from '@/data/coachLayouts';
-import { User, ArrowLeft, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { AnimatePresence, motion } from 'framer-motion';
+import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, User } from 'lucide-react';
+import { useState } from 'react';
 
 export interface PassengerDetails {
   seatId: string;
@@ -28,6 +28,8 @@ interface PassengerFormProps {
   onConfirm: (passengers: PassengerDetails[]) => void;
   trainName: string;
   coachNumber: string;
+  quota?: string;
+  disabilityType?: string;
 }
 
 const containerVariants = {
@@ -52,7 +54,9 @@ export const PassengerForm = ({
   onBack, 
   onConfirm,
   trainName,
-  coachNumber
+  coachNumber,
+  quota,
+  disabilityType
 }: PassengerFormProps) => {
   const [passengers, setPassengers] = useState<PassengerDetails[]>(
     selectedSeats.map(seat => ({
@@ -122,7 +126,27 @@ export const PassengerForm = ({
     }
   };
 
-  const totalAmount = selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
+  const baseAmount = selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
+  
+  let concession = 0;
+  let finalAmount = baseAmount;
+
+  if (quota === 'WD' && disabilityType) {
+    const DISABILITY_OPTS = [
+        { id: 'BLIND', discount: 0.75 },
+        { id: 'ORTHOPEDIC', discount: 0.75 },
+        { id: 'DEAF_DUMB', discount: 0.50 },
+        { id: 'MENTAL', discount: 0.75 },
+        { id: 'CANCER', discount: 0.50 },
+        { id: 'PATIENT', discount: 0.50 },
+    ];
+    const opt = DISABILITY_OPTS.find(o => o.id === disabilityType);
+    if (opt) {
+      concession = Math.round(baseAmount * opt.discount);
+      finalAmount = baseAmount - concession;
+    }
+  }
+
   const isFormComplete = passengers.every(p => p.name && p.age && p.gender);
 
   return (
@@ -323,7 +347,17 @@ export const PassengerForm = ({
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div>
             <p className="text-sm text-muted-foreground">Total Fare</p>
-            <p className="text-2xl font-bold text-foreground">₹{totalAmount}</p>
+             {concession > 0 ? (
+                <div className="flex items-baseline gap-2">
+                     <span className="text-xl font-bold text-muted-foreground/60 line-through">₹{baseAmount}</span>
+                     <span className="text-2xl font-bold text-green-600">₹{finalAmount}</span>
+                     <span className="text-xs font-bold bg-green-100 text-green-600 px-2 py-0.5 rounded-full ml-1">
+                        Concession Applied
+                     </span>
+                </div>
+             ) : (
+                <p className="text-2xl font-bold text-foreground">₹{finalAmount}</p>
+             )}
           </div>
           <Button
             onClick={handleSubmit}

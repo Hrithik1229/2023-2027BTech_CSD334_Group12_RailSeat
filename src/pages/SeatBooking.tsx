@@ -10,6 +10,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, MapPin, Train } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { io, Socket } from 'socket.io-client';
 import { toast } from 'sonner';
 
 const SeatBooking = () => {
@@ -28,6 +29,7 @@ const SeatBooking = () => {
   const [journeyDistance, setJourneyDistance] = useState<number>(distance || 0);
   const [bookedSeatIds, setBookedSeatIds] = useState<Set<string>>(new Set());
   const [disabilityType, setDisabilityType] = useState<string>('');
+  const [socket, setSocket] = useState<Socket | null>(null);
 
   // Map DB berth_type codes → frontend BerthType string union
   const mapBerthType = (berth: string): BerthType => {
@@ -61,11 +63,23 @@ const SeatBooking = () => {
       const rowNum = s.row_number ?? 1;
       if (!rowMap.has(rowNum)) rowMap.set(rowNum, []);
 
+      // Evaluate actual DB lock status
+      let initialStatus = 'available';
+      if (s.status === 'locked') {
+          // Additional safety check on frontend if lock_expires_at is past
+          if (s.lock_expires_at && new Date(s.lock_expires_at) > new Date()) {
+              initialStatus = 'locked';
+          }
+      } else if (s.status === 'booked') {
+          // If permanent booked column applies, although usually overwritten by availability request
+          initialStatus = 'booked';
+      }
+
       rowMap.get(rowNum)!.push({
         id: s.seat_id.toString(),
         number: String(s.seat_number),
         type: mapBerthType(s.berth_type),
-        status: 'available',
+        status: initialStatus as 'available' | 'locked' | 'booked',
         price: 0,
       });
     });
@@ -97,6 +111,50 @@ const SeatBooking = () => {
       rows: finalRows,
     };
   };
+
+  const updateSeatStatus = (seatIds: (string | number)[], status: 'available' | 'booked' | 'locked') => {
+      const stringIds = seatIds.map(String);
+      setCoachLayouts(prev => {
+          const newLayouts = { ...prev };
+          Object.keys(newLayouts).forEach(coachId => {
+              newLayouts[coachId] = {
+                  ...newLayouts[coachId],
+                  rows: newLayouts[coachId].rows.map(row => ({
+                      ...row,
+                      seats: row.seats.map(seat => {
+                          if (stringIds.includes(seat.id)) {
+                              return { ...seat, status: status as any };
+                          }
+                          return seat;
+                      })
+                  }))
+              };
+          });
+          return newLayouts;
+      });
+  };
+
+  useEffect(() => {
+    const backendUrl = API_BASE.replace(/\/api$/, '');
+    const newSocket = io(backendUrl || 'http://localhost:3000');
+    setSocket(newSocket);
+
+    newSocket.on("seats-locked", ({ seatIds }) => {
+        updateSeatStatus(seatIds, 'locked');
+    });
+
+    newSocket.on("seats-unlocked", ({ seatIds }) => {
+        updateSeatStatus(seatIds, 'available');
+    });
+
+    newSocket.on("seats-booked", ({ seatIds }) => {
+        updateSeatStatus(seatIds, 'booked');
+    });
+
+    return () => {
+        newSocket.disconnect();
+    }
+  }, []);
 
   useEffect(() => {
     const user = getStoredUser();
@@ -242,7 +300,7 @@ const SeatBooking = () => {
                     return { 
                         ...seat, 
                         price, 
-                        status: isBooked ? 'booked' : 'available' 
+                        status: isBooked ? 'booked' : seat.status // Preserve existing locked status if any
                     };
                 })
             }));
@@ -299,7 +357,18 @@ const SeatBooking = () => {
       toast.error('Please select at least one seat');
       return;
     }
-    setShowPassengerForm(true);
+
+    if (socket) {
+        socket.emit("lock-seats", { seatIds: selectedSeats.map(s => parseInt(s.id)) }, (response: any) => {
+            if (response.success) {
+                setShowPassengerForm(true);
+            } else {
+                toast.error(response.message || "Failed to lock seats");
+            }
+        });
+    } else {
+       setShowPassengerForm(true);
+    }
   };
 
   const handlePassengerConfirm = async (passengers: PassengerDetails[]) => {
@@ -341,6 +410,7 @@ const SeatBooking = () => {
                 name: p.name,
                 gender: p.gender
             })),
+            socketId: socket?.id,
             quota: quota, 
             disabilityType: disabilityType 
         };
@@ -379,10 +449,16 @@ const SeatBooking = () => {
   };
 
   const handleBackToSeats = () => {
+    if (socket) {
+        socket.emit("cancel-booking");
+    }
     setShowPassengerForm(false);
   };
 
   const handleChangeCoach = () => {
+    if (socket && selectedSeats.length > 0) {
+        socket.emit("cancel-booking");
+    }
     setSelectedSeats([]);
     setShowPassengerForm(false);
   };
@@ -496,6 +572,8 @@ const SeatBooking = () => {
                 onConfirm={handlePassengerConfirm}
                 trainName={train.name}
                 coachNumber={selectedCoach}
+                quota={quota}
+                disabilityType={disabilityType}
               />
             </motion.div>
           ) : (
