@@ -5,7 +5,7 @@ import { initDatabase } from "./config/initDb.js";
 
 dotenv.config();
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5001;
 
 import http from 'http';
 import { initSockets } from './sockets.js';

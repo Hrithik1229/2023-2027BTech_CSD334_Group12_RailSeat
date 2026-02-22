@@ -1,9 +1,9 @@
-import { Op } from 'sequelize';
 import { Server } from 'socket.io';
-import sequelize from './config/db.js';
-import Seat from './models/seat.model.js';
 
 let io;
+
+// In-memory locks: key: seatId_date, value: { socketId, expiresAt, source, destination, trainId }
+export const activeLocks = new Map();
 
 export const initSockets = (server) => {
     io = new Server(server, {
@@ -18,56 +18,34 @@ export const initSockets = (server) => {
 
         socket.on("lock-seats", async (data, callback) => {
             console.log(`Received lock-seats from ${socket.id} with data:`, data);
-            const { seatIds } = data;
-            if (!seatIds || seatIds.length === 0) {
-                if (callback) callback({ success: false, message: "No seat IDs provided." });
+            const { seatIds, date, trainId, source, destination } = data;
+            if (!seatIds || seatIds.length === 0 || !date || !trainId) {
+                if (callback) callback({ success: false, message: "Missing required lock data." });
                 return;
             }
 
-            const transaction = await sequelize.transaction();
             try {
-                // Find seats and verify ALL are available
-                const seats = await Seat.findAll({
-                    where: {
-                        seat_id: { [Op.in]: seatIds },
-                    },
-                    lock: true, // Prevents reading these rows until transaction completes
-                    transaction
-                });
-
-                const allAvailable = seats.every(s => s.status === 'available');
-
-                if (!allAvailable) {
-                    await transaction.rollback();
-                    if (callback) callback({ success: false, message: "One or more seats are no longer available." });
-                    socket.emit("lock-failed", { message: "One or more seats are no longer available." });
-                    return;
-                }
-
-                // Update seats
+                // Add to lock map directly (we trust frontend availability constraints)
                 const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 mins
-
-                await Seat.update({
-                    status: 'locked',
-                    locked_by: socket.id,
-                    lock_expires_at: expiresAt
-                }, {
-                    where: {
-                        seat_id: { [Op.in]: seatIds },
-                        status: 'available' // Double check condition
-                    },
-                    transaction
-                });
-
-                await transaction.commit();
+                for (const seatId of seatIds) {
+                    const key = `${seatId}_${date}_${socket.id}`;
+                    activeLocks.set(key, {
+                        seatId,
+                        socketId: socket.id,
+                        expiresAt,
+                        date,
+                        trainId,
+                        source,
+                        destination
+                    });
+                }
 
                 if (callback) callback({ success: true, message: "Seats locked successfully." });
 
                 // Broadcast
-                io.emit("seats-locked", { seatIds });
+                io.emit("seats-locked", { seatIds, date, trainId, source, destination });
 
             } catch (error) {
-                await transaction.rollback();
                 console.error("Error locking seats:", error);
                 if (callback) callback({ success: false, message: "Internal server error." });
             }
@@ -85,34 +63,27 @@ export const initSockets = (server) => {
         });
     });
 
-    // Background auto-unlock interval (30 seconds)
-    setInterval(async () => {
+    // Background auto-unlock interval
+    setInterval(() => {
         try {
             const now = new Date();
-            // Find expired locks
-            const expiredSeats = await Seat.findAll({
-                where: {
-                    status: 'locked',
-                    lock_expires_at: { [Op.lt]: now }
-                },
-                attributes: ['seat_id']
-            });
+            const expiredSeatIds = [];
+            let expiredInfo = null;
 
-            if (expiredSeats.length > 0) {
-                const seatIds = expiredSeats.map(s => s.seat_id);
-                // Update
-                await Seat.update({
-                    status: 'available',
-                    locked_by: null,
-                    lock_expires_at: null
-                }, {
-                    where: {
-                        seat_id: { [Op.in]: seatIds }
-                    }
+            for (const [key, lock] of activeLocks.entries()) {
+                if (lock.expiresAt < now) {
+                    expiredSeatIds.push(lock.seatId);
+                    expiredInfo = lock;
+                    activeLocks.delete(key);
+                }
+            }
+
+            if (expiredSeatIds.length > 0 && expiredInfo) {
+                io.emit("seats-unlocked", {
+                    seatIds: expiredSeatIds,
+                    date: expiredInfo.date,
+                    trainId: expiredInfo.trainId
                 });
-
-                // Emit
-                io.emit("seats-unlocked", { seatIds });
             }
         } catch (error) {
             console.error("Error in auto-unlock interval:", error);
@@ -122,29 +93,23 @@ export const initSockets = (server) => {
 
 async function releaseSeatsBySocket(socketId) {
     try {
-        const lockedSeats = await Seat.findAll({
-            where: {
-                status: 'locked',
-                locked_by: socketId
-            },
-            attributes: ['seat_id']
-        });
+        const releasedSeatIds = [];
+        let releaseInfo = null;
 
-        if (lockedSeats.length > 0) {
-            const seatIds = lockedSeats.map(s => s.seat_id);
-            await Seat.update({
-                status: 'available',
-                locked_by: null,
-                lock_expires_at: null
-            }, {
-                where: {
-                    seat_id: { [Op.in]: seatIds }
-                }
-            });
-
-            if (io) {
-                io.emit("seats-unlocked", { seatIds });
+        for (const [key, lock] of activeLocks.entries()) {
+            if (lock.socketId === socketId) {
+                releasedSeatIds.push(lock.seatId);
+                releaseInfo = lock;
+                activeLocks.delete(key);
             }
+        }
+
+        if (releasedSeatIds.length > 0 && releaseInfo && io) {
+            io.emit("seats-unlocked", {
+                seatIds: releasedSeatIds,
+                date: releaseInfo.date,
+                trainId: releaseInfo.trainId
+            });
         }
     } catch (error) {
         console.error("Error releasing disconnected socket seats:", error);

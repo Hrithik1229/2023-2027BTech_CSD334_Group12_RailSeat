@@ -12,6 +12,7 @@ import {
   TrainStop
 } from "../models/index.js";
 import { getFaresForCoach } from "../services/fareCalculator.service.js";
+import { activeLocks } from "../sockets.js";
 
 // Get train stops (via Runs)
 export const getTrainStops = async (req, res) => {
@@ -730,7 +731,25 @@ export const getTrainAvailability = async (req, res) => {
       }
     }
 
-    res.json({ bookedSeatIds: Array.from(bookedSeatIds) });
+    // 4. Fetch Active In-Memory Locks for this Date
+    const lockedIds = [];
+    const now = new Date();
+    for (const [key, lock] of activeLocks.entries()) {
+      if (lock.trainId === id && lock.date === date && lock.expiresAt > now) {
+        const lockStartOrder = stationMap.get(norm(lock.source));
+        const lockEndOrder = stationMap.get(norm(lock.destination));
+
+        if (lockStartOrder === undefined || lockEndOrder === undefined) {
+          // Fallback: if lock stations not found in current route, ASSUME OVERLAP
+          lockedIds.push(lock.seatId);
+        } else if (P < lockEndOrder && Q > lockStartOrder) {
+          // Overlap Logic: P < Y && Q > X
+          lockedIds.push(lock.seatId);
+        }
+      }
+    }
+
+    res.json({ bookedSeatIds: Array.from(bookedSeatIds), lockedSeatIds: lockedIds });
 
   } catch (error) {
     res.status(500).json({ error: error.message });

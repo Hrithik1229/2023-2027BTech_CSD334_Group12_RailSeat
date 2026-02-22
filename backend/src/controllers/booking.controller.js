@@ -1,5 +1,5 @@
 import { Booking, Coach, Passenger, Seat, Train } from "../models/index.js";
-import { getIO } from "../sockets.js";
+import { activeLocks, getIO } from "../sockets.js";
 
 // Generate unique booking number
 // Generate unique 10-digit booking number
@@ -49,15 +49,20 @@ export const createBooking = async (req, res) => {
 
     const seatIds = seats.map(s => s.seatId);
     if (seatIds.length > 0) {
-      const lockedSeats = await Seat.findAll({
-        where: { seat_id: seatIds }
-      });
+      let notLockedByMe = false;
+      const now = new Date();
+      // Assume travelDate is string YYYY-MM-DD
+      const travelDateStr = typeof travelDate === 'string' ? travelDate : new Date(travelDate).toISOString().split('T')[0];
 
-      if (lockedSeats.length !== seatIds.length) {
-        return res.status(400).json({ error: "One or more seats were not found." });
+      for (const seatId of seatIds) {
+        const key = `${seatId}_${travelDateStr}_${socketId}`;
+        const lock = activeLocks.get(key);
+        if (!lock || lock.expiresAt < now) {
+          notLockedByMe = true;
+          break;
+        }
       }
 
-      const notLockedByMe = lockedSeats.some(s => s.status !== 'locked' || s.locked_by !== socketId);
       if (notLockedByMe) {
         return res.status(400).json({ error: "One or more seats are not locked by your session, or your lock has expired." });
       }
@@ -94,19 +99,17 @@ export const createBooking = async (req, res) => {
 
     await Promise.all(passengerPromises);
 
-    // Change seat status from locked -> booked
+    // Change seat status from locked -> booked (remove lock from memory)
     if (seatIds.length > 0) {
-      await Seat.update({
-        status: 'booked',
-        locked_by: null,
-        lock_expires_at: null
-      }, {
-        where: { seat_id: seatIds }
-      });
+      const travelDateStr = typeof travelDate === 'string' ? travelDate : new Date(travelDate).toISOString().split('T')[0];
+      for (const seatId of seatIds) {
+        const key = `${seatId}_${travelDateStr}_${socketId}`;
+        activeLocks.delete(key);
+      }
 
       try {
         const io = getIO();
-        io.emit("seats-booked", { seatIds });
+        io.emit("seats-booked", { seatIds, date: travelDateStr, trainId: trainId });
       } catch (e) {
         console.error("Failed to emit seats-booked overlay", e);
       }

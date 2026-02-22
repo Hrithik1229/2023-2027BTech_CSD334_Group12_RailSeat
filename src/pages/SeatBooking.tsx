@@ -28,6 +28,7 @@ const SeatBooking = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [journeyDistance, setJourneyDistance] = useState<number>(distance || 0);
   const [bookedSeatIds, setBookedSeatIds] = useState<Set<string>>(new Set());
+  const [lockedAPISeatIds, setLockedAPISeatIds] = useState<Set<string>>(new Set());
   const [disabilityType, setDisabilityType] = useState<string>('');
   const [socket, setSocket] = useState<Socket | null>(null);
 
@@ -63,17 +64,8 @@ const SeatBooking = () => {
       const rowNum = s.row_number ?? 1;
       if (!rowMap.has(rowNum)) rowMap.set(rowNum, []);
 
-      // Evaluate actual DB lock status
+      // Seat initial status is available, to be overridden by API states
       let initialStatus = 'available';
-      if (s.status === 'locked') {
-          // Additional safety check on frontend if lock_expires_at is past
-          if (s.lock_expires_at && new Date(s.lock_expires_at) > new Date()) {
-              initialStatus = 'locked';
-          }
-      } else if (s.status === 'booked') {
-          // If permanent booked column applies, although usually overwritten by availability request
-          initialStatus = 'booked';
-      }
 
       rowMap.get(rowNum)!.push({
         id: s.seat_id.toString(),
@@ -136,19 +128,27 @@ const SeatBooking = () => {
 
   useEffect(() => {
     const backendUrl = API_BASE.replace(/\/api$/, '');
-    const newSocket = io(backendUrl || 'http://localhost:3000');
+    const newSocket = io(backendUrl || 'http://localhost:5001');
     setSocket(newSocket);
 
-    newSocket.on("seats-locked", ({ seatIds }) => {
-        updateSeatStatus(seatIds, 'locked');
+    newSocket.on("seats-locked", (payload: any) => {
+        if (payload.trainId !== trainId || payload.date !== isoDate) return;
+        // Basic direction check: if both are searching same direction, lock it.
+        // For a full overlap check, we rely on the backend getTrainAvailability on load.
+        // Here we just avoid applying A->B lock to B->A.
+        if (payload.source === destination && payload.destination === source) return; 
+        updateSeatStatus(payload.seatIds, 'locked');
     });
 
-    newSocket.on("seats-unlocked", ({ seatIds }) => {
-        updateSeatStatus(seatIds, 'available');
+    newSocket.on("seats-unlocked", (payload: any) => {
+        if (payload.trainId && payload.trainId !== trainId) return;
+        if (payload.date && payload.date !== isoDate) return;
+        updateSeatStatus(payload.seatIds, 'available');
     });
 
-    newSocket.on("seats-booked", ({ seatIds }) => {
-        updateSeatStatus(seatIds, 'booked');
+    newSocket.on("seats-booked", (payload: any) => {
+        if (payload.trainId !== trainId || payload.date !== isoDate) return;
+        updateSeatStatus(payload.seatIds, 'booked');
     });
 
     return () => {
@@ -239,9 +239,10 @@ const SeatBooking = () => {
       try {
         const res = await fetch(`${API_BASE}/trains/${trainId}/availability?date=${isoDate}&source=${source}&destination=${destination}`);
         if (res.ok) {
-          const { bookedSeatIds: ids } = await res.json();
+          const { bookedSeatIds: ids, lockedSeatIds: lIds } = await res.json();
           // Ensure IDs are strings to match frontend model
           setBookedSeatIds(new Set(ids.map(String)));
+          setLockedAPISeatIds(new Set((lIds || []).map(String)));
         }
       } catch (err) {
         console.error("Availability fetch failed", err);
@@ -296,11 +297,12 @@ const SeatBooking = () => {
                     const berthCode = originalSeat ? originalSeat.berth_type : '';
                     const price = fareMap[berthCode] || 500; 
                     const isBooked = bookedSeatIds.has(seat.id);
+                    const isLocked = lockedAPISeatIds.has(seat.id);
                     
                     return { 
                         ...seat, 
                         price, 
-                        status: isBooked ? 'booked' : seat.status // Preserve existing locked status if any
+                        status: isBooked ? 'booked' : (isLocked ? 'locked' : seat.status) // Preserve websocket updates if any
                     };
                 })
             }));
@@ -313,7 +315,7 @@ const SeatBooking = () => {
     };
 
     fetchFares();
-  }, [selectedCoach, train?.id, journeyDistance, rawCoaches.length, bookedSeatIds]);
+  }, [selectedCoach, train?.id, journeyDistance, rawCoaches.length, bookedSeatIds, lockedAPISeatIds]);
 
   const handleSeatSelect = (seat: SeatType) => {
     // Senior Citizen Quota (SS) Validation
@@ -359,7 +361,13 @@ const SeatBooking = () => {
     }
 
     if (socket) {
-        socket.emit("lock-seats", { seatIds: selectedSeats.map(s => parseInt(s.id)) }, (response: any) => {
+        socket.emit("lock-seats", { 
+            seatIds: selectedSeats.map(s => parseInt(s.id)),
+            date: isoDate || new Date().toISOString().split('T')[0],
+            trainId: train.id,
+            source: source,
+            destination: destination
+        }, (response: any) => {
             if (response.success) {
                 setShowPassengerForm(true);
             } else {
