@@ -1,30 +1,45 @@
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { getStoredUser, clearStoredUser } from "@/lib/api";
-import { ArrowRight, LogOut, User } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { ExpandableTabs } from "@/components/ui/expandable-tabs";
+import { clearStoredUser, getStoredUser } from "@/lib/api";
+import { HelpCircle, Home, Ticket, UserCircle2 } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 interface NavbarProps {
-  /** Optional extra nav links (e.g. Features, How it works for home) */
+  /** Optional extra nav links */
   extraNav?: React.ReactNode;
-  /** Optional CTA label; default "Book Now" */
   ctaLabel?: string;
-  /** Optional CTA path; default /book */
   ctaPath?: string;
 }
 
 const Navbar = ({ extraNav, ctaLabel = "Book Now", ctaPath = "/book" }: NavbarProps) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const user = getStoredUser();
 
   const handleLogout = () => {
     clearStoredUser();
     navigate("/");
+  };
+
+  const tabs = [
+    { title: "Home", icon: Home },
+    { title: user ? (user.username ?? "My Account") : "Sign In", icon: UserCircle2 },
+    { type: "separator" as const },
+    { title: "Book Ticket", icon: Ticket },
+    { title: "Support", icon: HelpCircle },
+  ];
+
+  const getTabIndex = () => {
+    if (location.pathname === "/") return 0;
+    if (location.pathname === "/profile") return 1;
+    if (location.pathname === "/login") return 1;
+    if (location.pathname === "/book") return 3;
+    return null;
+  };
+
+  const handleTabChange = (index: number | null) => {
+    if (index === 0) navigate("/");
+    if (index === 1) navigate(user ? "/profile" : "/login");
+    if (index === 3) navigate("/book");
   };
 
   return (
@@ -37,60 +52,10 @@ const Navbar = ({ extraNav, ctaLabel = "Book Now", ctaPath = "/book" }: NavbarPr
           </span>
         </Link>
 
-        <nav className="flex items-center gap-4">
-          {extraNav}
-          {user ? (
-            <>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="gap-2 px-2">
-                    <span className="hidden sm:inline text-muted-foreground">
-                      {user.username}
-                    </span>
-                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                      <User className="h-4 w-4 text-primary" />
-                    </div>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem asChild>
-                    <Link to="/profile" className="flex items-center gap-2 cursor-pointer">
-                      <User className="h-4 w-4" />
-                      Profile & Bookings
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={handleLogout}
-                    className="flex items-center gap-2 text-destructive focus:text-destructive cursor-pointer"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    Log out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button asChild>
-                <Link to={ctaPath}>
-                  {ctaLabel}
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button variant="ghost" asChild>
-                <Link to="/login">Sign in</Link>
-              </Button>
-              <Button variant="outline" asChild className="border-primary/30 text-primary hover:bg-primary/10">
-                <Link to="/signup">Sign up</Link>
-              </Button>
-              <Button asChild>
-                <Link to={ctaPath}>
-                  {ctaLabel}
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </>
-          )}
+        <nav className="flex flex-1 items-center justify-center mx-4">
+          <div className="hidden md:block">
+            <ExpandableTabs tabs={tabs} defaultSelected={getTabIndex()} onChange={handleTabChange} activeColor="text-primary" />
+          </div>
         </nav>
       </div>
     </header>

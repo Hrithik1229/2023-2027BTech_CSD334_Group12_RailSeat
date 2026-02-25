@@ -42,18 +42,8 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans overflow-x-hidden">
-      <Navbar
-        extraNav={
-          <div className="hidden md:flex items-center gap-6 mr-4">
-            <a href="#features" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
-              Features
-            </a>
-            <a href="#how-it-works" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
-              How It Works
-            </a>
-          </div>
-        }
-      />
+      <Navbar />
+
 
       {/* Hero Section */}
       <section className="relative h-screen flex items-center justify-center overflow-hidden">

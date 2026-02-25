@@ -4,14 +4,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { getMyBookings, getStoredUser, setStoredUser, updateUserProfile, type Booking } from "@/lib/api";
+import { clearStoredUser, getMyBookings, getStoredUser, setStoredUser, updateUserProfile, type Booking } from "@/lib/api";
 import { format } from "date-fns";
-import { Calendar, Ticket, Train } from "lucide-react";
+import { Calendar, LogOut, Ticket, Train } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 const Profile = () => {
   const user = getStoredUser();
+  const navigate = useNavigate();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
@@ -20,6 +21,11 @@ const Profile = () => {
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
+
+  const handleLogout = () => {
+    clearStoredUser();
+    navigate("/");
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -103,11 +109,22 @@ const Profile = () => {
               <CardTitle>Your info</CardTitle>
               <CardDescription>Update your username and email</CardDescription>
             </div>
-            {!editMode && (
-              <Button variant="outline" size="sm" onClick={() => setEditMode(true)}>
-                Edit
+            <div className="flex items-center gap-2">
+              {!editMode && (
+                <Button variant="outline" size="sm" onClick={() => setEditMode(true)}>
+                  Edit
+                </Button>
+              )}
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleLogout}
+                className="gap-1.5"
+              >
+                <LogOut className="h-4 w-4" />
+                Log out
               </Button>
-            )}
+            </div>
           </CardHeader>
           <CardContent>
             {editMode ? (
