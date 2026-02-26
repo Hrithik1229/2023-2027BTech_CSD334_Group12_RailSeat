@@ -51,13 +51,12 @@ export const createBooking = async (req, res) => {
     if (seatIds.length > 0) {
       let notLockedByMe = false;
       const now = new Date();
-      // Assume travelDate is string YYYY-MM-DD
       const travelDateStr = typeof travelDate === 'string' ? travelDate : new Date(travelDate).toISOString().split('T')[0];
 
       for (const seatId of seatIds) {
-        const key = `${seatId}_${travelDateStr}_${socketId}`;
+        const key = `${seatId}_${travelDateStr}`;
         const lock = activeLocks.get(key);
-        if (!lock || lock.expiresAt < now) {
+        if (!lock || lock.expiresAt < now || lock.socketId !== socketId) {
           notLockedByMe = true;
           break;
         }
@@ -99,11 +98,11 @@ export const createBooking = async (req, res) => {
 
     await Promise.all(passengerPromises);
 
-    // Change seat status from locked -> booked (remove lock from memory)
+    // Remove locks and emit booked event
     if (seatIds.length > 0) {
       const travelDateStr = typeof travelDate === 'string' ? travelDate : new Date(travelDate).toISOString().split('T')[0];
       for (const seatId of seatIds) {
-        const key = `${seatId}_${travelDateStr}_${socketId}`;
+        const key = `${seatId}_${travelDateStr}`;
         activeLocks.delete(key);
       }
 

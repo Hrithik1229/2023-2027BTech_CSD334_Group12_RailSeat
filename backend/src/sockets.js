@@ -2,13 +2,31 @@ import { Server } from 'socket.io';
 
 let io;
 
-// In-memory locks: key: seatId_date, value: { socketId, expiresAt, source, destination, trainId }
+// In-memory locks: key: `${seatId}_${date}` (NO socketId in key)
+// This ensures only ONE user can hold a lock per seat per date at a time.
+// value: { socketId, expiresAt, seatId, date, trainId, source, destination }
 export const activeLocks = new Map();
+
+/**
+ * Check if a seat is currently locked by someone OTHER than the given socketId.
+ * Returns the lock entry if conflicted, or null if the seat is free/self-locked.
+ */
+const getConflictingLock = (seatId, date, socketId) => {
+    const key = `${seatId}_${date}`;
+    const lock = activeLocks.get(key);
+    if (!lock) return null;                          // not locked at all
+    if (lock.expiresAt < new Date()) {               // lock expired — treat as free
+        activeLocks.delete(key);
+        return null;
+    }
+    if (lock.socketId === socketId) return null;     // locked by this very socket (re-lock)
+    return lock;                                     // locked by someone else ← conflict
+};
 
 export const initSockets = (server) => {
     io = new Server(server, {
         cors: {
-            origin: "*", // Or replace with specific frontend URL
+            origin: "*",
             methods: ["GET", "POST"]
         }
     });
@@ -16,73 +34,90 @@ export const initSockets = (server) => {
     io.on("connection", (socket) => {
         console.log(`Socket connected: ${socket.id}`);
 
-        socket.on("lock-seats", async (data, callback) => {
-            console.log(`Received lock-seats from ${socket.id} with data:`, data);
+        // ── lock-seats ───────────────────────────────────────────────────────────
+        socket.on("lock-seats", (data, callback) => {
+            console.log(`lock-seats from ${socket.id}:`, data);
             const { seatIds, date, trainId, source, destination } = data;
+
             if (!seatIds || seatIds.length === 0 || !date || !trainId) {
                 if (callback) callback({ success: false, message: "Missing required lock data." });
                 return;
             }
 
-            try {
-                // Add to lock map directly (we trust frontend availability constraints)
-                const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 mins
-                for (const seatId of seatIds) {
-                    const key = `${seatId}_${date}_${socket.id}`;
-                    activeLocks.set(key, {
-                        seatId,
-                        socketId: socket.id,
-                        expiresAt,
-                        date,
-                        trainId,
-                        source,
-                        destination
+            // ── ATOMIC conflict check BEFORE writing any lock ─────────────────
+            // If even ONE seat is taken by another user, reject the whole batch.
+            for (const seatId of seatIds) {
+                const conflict = getConflictingLock(seatId, date, socket.id);
+                if (conflict) {
+                    console.log(`Seat ${seatId} conflict: held by socket ${conflict.socketId}`);
+                    if (callback) callback({
+                        success: false,
+                        message: `Seat ${seatId} is already selected by another user. Please choose a different seat.`,
+                        conflictingSeatId: seatId
                     });
+                    return; // reject — don't lock anything
                 }
-
-                if (callback) callback({ success: true, message: "Seats locked successfully." });
-
-                // Broadcast
-                io.emit("seats-locked", { seatIds, date, trainId, source, destination });
-
-            } catch (error) {
-                console.error("Error locking seats:", error);
-                if (callback) callback({ success: false, message: "Internal server error." });
             }
+
+            // ── All seats free — acquire locks ────────────────────────────────
+            const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+            for (const seatId of seatIds) {
+                const key = `${seatId}_${date}`;
+                activeLocks.set(key, {
+                    seatId,
+                    socketId: socket.id,
+                    expiresAt,
+                    date,
+                    trainId,
+                    source,
+                    destination
+                });
+            }
+
+            if (callback) callback({ success: true, message: "Seats locked successfully." });
+
+            // Broadcast to all OTHER clients so their UI updates immediately
+            socket.broadcast.emit("seats-locked", { seatIds, date, trainId, source, destination });
         });
 
-        // Release on disconnect
-        socket.on("disconnect", async () => {
-            console.log(`Socket disconnected: ${socket.id}, Releasing seats...`);
-            await releaseSeatsBySocket(socket.id);
+        // ── disconnect: release all locks held by this socket ────────────────
+        socket.on("disconnect", () => {
+            console.log(`Socket disconnected: ${socket.id}, releasing locks...`);
+            releaseSeatsBySocket(socket.id);
         });
 
-        socket.on("cancel-booking", async () => {
-            // Explicit release if they cancel but don't disconnect
-            await releaseSeatsBySocket(socket.id);
+        // ── cancel-booking: explicit release without disconnect ───────────────
+        socket.on("cancel-booking", () => {
+            releaseSeatsBySocket(socket.id);
         });
     });
 
-    // Background auto-unlock interval
+    // ── Background auto-unlock (expired locks) ────────────────────────────────
     setInterval(() => {
         try {
             const now = new Date();
-            const expiredSeatIds = [];
-            let expiredInfo = null;
+            // Group expired locks by trainId+date for batched broadcast
+            const expiredByTrainDate = new Map();
 
             for (const [key, lock] of activeLocks.entries()) {
                 if (lock.expiresAt < now) {
-                    expiredSeatIds.push(lock.seatId);
-                    expiredInfo = lock;
                     activeLocks.delete(key);
+
+                    const groupKey = `${lock.trainId}_${lock.date}`;
+                    if (!expiredByTrainDate.has(groupKey)) {
+                        expiredByTrainDate.set(groupKey, { trainId: lock.trainId, date: lock.date, seatIds: [] });
+                    }
+                    expiredByTrainDate.get(groupKey).seatIds.push(lock.seatId);
                 }
             }
 
-            if (expiredSeatIds.length > 0 && expiredInfo) {
+            for (const group of expiredByTrainDate.values()) {
+                console.log(`Auto-unlocking expired seats:`, group.seatIds);
                 io.emit("seats-unlocked", {
-                    seatIds: expiredSeatIds,
-                    date: expiredInfo.date,
-                    trainId: expiredInfo.trainId
+                    seatIds: group.seatIds,
+                    date: group.date,
+                    trainId: group.trainId
                 });
             }
         } catch (error) {
@@ -91,34 +126,41 @@ export const initSockets = (server) => {
     }, 30 * 1000);
 };
 
-async function releaseSeatsBySocket(socketId) {
+/**
+ * Release all locks held by a given socketId and notify other clients.
+ */
+function releaseSeatsBySocket(socketId) {
     try {
-        const releasedSeatIds = [];
-        let releaseInfo = null;
+        // Group released locks by trainId+date for batched broadcast
+        const releasedByTrainDate = new Map();
 
         for (const [key, lock] of activeLocks.entries()) {
             if (lock.socketId === socketId) {
-                releasedSeatIds.push(lock.seatId);
-                releaseInfo = lock;
                 activeLocks.delete(key);
+
+                const groupKey = `${lock.trainId}_${lock.date}`;
+                if (!releasedByTrainDate.has(groupKey)) {
+                    releasedByTrainDate.set(groupKey, { trainId: lock.trainId, date: lock.date, seatIds: [] });
+                }
+                releasedByTrainDate.get(groupKey).seatIds.push(lock.seatId);
             }
         }
 
-        if (releasedSeatIds.length > 0 && releaseInfo && io) {
-            io.emit("seats-unlocked", {
-                seatIds: releasedSeatIds,
-                date: releaseInfo.date,
-                trainId: releaseInfo.trainId
-            });
+        if (releasedByTrainDate.size > 0 && io) {
+            for (const group of releasedByTrainDate.values()) {
+                io.emit("seats-unlocked", {
+                    seatIds: group.seatIds,
+                    date: group.date,
+                    trainId: group.trainId
+                });
+            }
         }
     } catch (error) {
-        console.error("Error releasing disconnected socket seats:", error);
+        console.error("Error releasing seats for socket:", socketId, error);
     }
 }
 
 export const getIO = () => {
-    if (!io) {
-        throw new Error("Socket.io not initialized");
-    }
+    if (!io) throw new Error("Socket.io not initialized");
     return io;
 };

@@ -42,9 +42,9 @@ export const createOrder = async (req, res) => {
 
         const now = new Date();
         for (const seatId of seatIds) {
-            const key = `${seatId}_${travelDateStr}_${socketId}`;
+            const key = `${seatId}_${travelDateStr}`;
             const lock = activeLocks.get(key);
-            if (!lock || lock.expiresAt < now) {
+            if (!lock || lock.expiresAt < now || lock.socketId !== socketId) {
                 return res.status(400).json({
                     error: `Seat ${seatId} is not locked by your session, or the lock has expired. Please re-select your seats.`,
                 });
@@ -127,7 +127,7 @@ export const verifyPayment = async (req, res) => {
                         : new Date(travelDate).toISOString().split("T")[0];
 
                 for (const { seatId } of seats) {
-                    const key = `${seatId}_${travelDateStr}_${socketId}`;
+                    const key = `${seatId}_${travelDateStr}`;
                     activeLocks.delete(key);
                 }
 
@@ -195,7 +195,7 @@ export const verifyPayment = async (req, res) => {
         // ── 3. Release locks & emit sockets ──────────────
         if (socketId) {
             for (const seatId of seatIds) {
-                const key = `${seatId}_${travelDateStr}_${socketId}`;
+                const key = `${seatId}_${travelDateStr}`;
                 activeLocks.delete(key);
             }
         }
@@ -258,7 +258,7 @@ export const releaseSeats = async (req, res) => {
         const seatIds = seats.map(s => s.seatId);
 
         for (const seatId of seatIds) {
-            const key = `${seatId}_${travelDateStr}_${socketId}`;
+            const key = `${seatId}_${travelDateStr}`;
             activeLocks.delete(key);
         }
 
