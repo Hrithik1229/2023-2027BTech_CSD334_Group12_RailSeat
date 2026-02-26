@@ -40,10 +40,19 @@ const Navbar = ({ extraNav, ctaLabel = "Book Now", ctaPath = "/book" }: NavbarPr
     if (index === 0) navigate("/");
     if (index === 1) navigate(user ? "/profile" : "/login");
     if (index === 3) navigate("/book");
+    if (index === 4) {
+      if (location.pathname === "/") {
+        // Already on index — smooth scroll to the footer
+        document.getElementById("support")?.scrollIntoView({ behavior: "smooth" });
+      } else {
+        // Navigate to the index page and land on the footer via hash
+        navigate("/#support");
+      }
+    }
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
+    <header className="sticky top-0 z-50 w-full min-w-[320px] border-b border-border bg-background/80 backdrop-blur-md">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link to="/" className="flex items-center gap-3">
           <img src="/logo (2).png" alt="RailSeat" className="h-10 w-auto object-contain" />

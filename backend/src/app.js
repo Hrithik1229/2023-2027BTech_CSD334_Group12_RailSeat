@@ -26,6 +26,11 @@ app.get("/api/test", (req, res) => {
   res.send("API is working");
 });
 
+// Health-check endpoint for the frontend server-detection ping
+app.get("/api/health", (req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 console.log("Routes mounted");
 console.log("Admin routes available at /api/admin");
 

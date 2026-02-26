@@ -1,6 +1,5 @@
 import heroImage from '@/assets/hero-train.jpg';
 import Navbar from '@/components/Navbar';
-import { Button } from '@/components/ui/button';
 import { getStoredUser } from '@/lib/api';
 import { ArrowRight, CheckCircle2, ChevronDown, LayoutDashboard, MapPin, Shield, Ticket, Users, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -81,34 +80,58 @@ const Index = () => {
             
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 animate-slide-up opacity-0" style={{ animationDelay: '0.4s', animationFillMode: 'forwards' }}>
               {isAdmin ? (
-                  <Button 
-                    onClick={() => navigate('/admin')}
-                    size="lg"
-                    className="h-14 px-8 text-lg font-semibold bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:-translate-y-1 transition-all duration-300 rounded-xl"
-                  >
-                    <LayoutDashboard className="w-5 h-5 mr-2" />
+                /* ── Admin Dashboard button ── */
+                <button
+                  onClick={() => navigate('/admin')}
+                  className="relative flex items-center px-8 py-4 overflow-hidden font-semibold text-lg transition-all bg-indigo-600 rounded-xl group shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
+                >
+                  {/* top-right corner sweep */}
+                  <span className="absolute top-0 right-0 inline-block w-5 h-5 transition-all duration-500 ease-in-out bg-indigo-800 rounded group-hover:-mr-5 group-hover:-mt-5">
+                    <span className="absolute top-0 right-0 w-6 h-6 rotate-45 translate-x-1/2 -translate-y-1/2 bg-white" />
+                  </span>
+                  {/* bottom-left corner sweep */}
+                  <span className="absolute bottom-0 rotate-180 left-0 inline-block w-5 h-5 transition-all duration-500 ease-in-out bg-indigo-800 rounded group-hover:-ml-5 group-hover:-mb-5">
+                    <span className="absolute top-0 right-0 w-6 h-6 rotate-45 translate-x-1/2 -translate-y-1/2 bg-white" />
+                  </span>
+                  {/* full-width slide overlay */}
+                  <span className="absolute bottom-0 left-0 w-full h-full transition-all duration-500 ease-in-out delay-200 -translate-x-full bg-indigo-700 rounded-xl group-hover:translate-x-0" />
+                  <span className="relative flex items-center gap-2 text-white">
+                    <LayoutDashboard className="w-5 h-5" />
                     Go to Admin Dashboard
-                    <ArrowRight className="w-5 h-5 ml-2" />
-                  </Button>
+                    <ArrowRight className="w-5 h-5" />
+                  </span>
+                </button>
               ) : (
-                  <Button 
-                    onClick={() => navigate('/book')}
-                    size="lg"
-                    className="h-14 px-8 text-lg font-semibold bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-1 transition-all duration-300 rounded-xl"
-                  >
-                    <Ticket className="w-5 h-5 mr-2" />
-                    Book Your Ticket
-                    <ArrowRight className="w-5 h-5 ml-2" />
-                  </Button>
+                /* ── Book Your Ticket — compass spin pill ── */
+                <button
+                  onClick={() => navigate('/book')}
+                  className="hero-explore-btn"
+                >
+                  <svg className="hero-explore-svg" viewBox="0 0 512 512" height="1em" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zm50.7-186.9L162.4 380.6c-19.4 7.5-38.5-11.6-31-31l55.5-144.3c3.3-8.5 9.9-15.1 18.4-18.4l144.3-55.5c19.4-7.5 38.5 11.6 31 31L325.1 306.7c-3.2 8.5-9.9 15.1-18.4 18.4zM288 256a32 32 0 1 0 -64 0 32 32 0 1 0 64 0z" />
+                  </svg>
+                  Book Ticket
+                </button>
               )}
-              <Button 
-                variant="outline"
-                size="lg"
+
+              {/* ── Explore Features button ── */}
+              
+              <button
                 onClick={scrollToFeatures}
-                className="h-14 px-8 text-lg font-medium border-2 hover:bg-secondary/50 backdrop-blur-sm rounded-xl transition-all duration-300"
+                className="relative flex items-center px-8 py-4 overflow-hidden font-semibold text-lg transition-all bg-transparent border-2 border-primary/40 rounded-xl group hover:border-primary/60 backdrop-blur-sm"
               >
-                Explore Features
-              </Button>
+                <span className="absolute top-0 right-0 inline-block w-5 h-5 transition-all duration-500 ease-in-out bg-primary/30 rounded group-hover:-mr-5 group-hover:-mt-5">
+                  <span className="absolute top-0 right-0 w-6 h-6 rotate-45 translate-x-1/2 -translate-y-1/2 bg-white/20" />
+                </span>
+                <span className="absolute bottom-0 rotate-180 left-0 inline-block w-5 h-5 transition-all duration-500 ease-in-out bg-primary/30 rounded group-hover:-ml-5 group-hover:-mb-5">
+                  <span className="absolute top-0 right-0 w-6 h-6 rotate-45 translate-x-1/2 -translate-y-1/2 bg-white/20" />
+                </span>
+                <span className="absolute bottom-0 left-0 w-full h-full transition-all duration-500 ease-in-out delay-200 -translate-x-full bg-primary/15 rounded-xl group-hover:translate-x-0" />
+                <span className="relative flex items-center gap-2 text-foreground group-hover:text-primary transition-colors duration-200">
+                  Explore Features
+    
+                </span>
+              </button>
             </div>
           </div>
         </div>
@@ -199,31 +222,11 @@ const Index = () => {
             </div>
           </div>
 
-          <div className="text-center mt-24">
-            {isAdmin ? (
-                <Button 
-                  onClick={() => navigate('/admin')}
-                  size="lg"
-                  className="h-16 px-12 text-xl font-bold rounded-full shadow-2xl shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-105 transition-all duration-300 animate-pulse bg-indigo-600 hover:bg-indigo-700"
-                >
-                  <LayoutDashboard className="w-5 h-5 mr-2 inline" />
-                  Access Admin Panel
-                </Button>
-            ) : (
-                <Button 
-                  onClick={() => navigate('/book')}
-                  size="lg"
-                  className="h-16 px-12 text-xl font-bold rounded-full shadow-2xl shadow-primary/30 hover:shadow-primary/50 hover:scale-105 transition-all duration-300 animate-pulse"
-                >
-                  Start Booking Now
-                </Button>
-            )}
-          </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-16 bg-card border-t border-border mt-auto">
+      <footer id="support" className="py-16 bg-card border-t border-border mt-auto">
         <div className="container mx-auto px-4">
           <div className="grid md:grid-cols-4 gap-12 mb-12">
             <div className="col-span-1 md:col-span-2">

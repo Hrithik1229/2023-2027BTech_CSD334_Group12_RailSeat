@@ -100,9 +100,16 @@ export type Booking = {
   total_amount: string;
   booking_status: string;
   payment_status: string;
+  createdAt?: string;
   train?: { train_number: string; train_name: string };
   passengers?: Array<{
     passenger_name: string;
-    seat?: { seat_number: string };
+    passenger_gender: string;
+    seat_id?: number;
+    seat?: {
+      seat_number: string | number;
+      berth_type: string;
+      coach?: { coach_number: string; coach_type: string };
+    };
   }>;
 };

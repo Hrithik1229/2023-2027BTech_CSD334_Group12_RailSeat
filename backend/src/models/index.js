@@ -27,6 +27,7 @@ Seat.belongsTo(Coach, { foreignKey: "coach_id", as: "coach" });
 
 // Export all models
 export {
-    Booking, Coach, FareRule, Passenger, Seat, SeatTypePricing, Station, Train, TrainRun, TrainStop, User, sequelize
+    Booking, Coach, FareRule, Passenger, Seat, SeatTypePricing,
+    Station, Train, TrainRun, TrainStop, User, sequelize
 };
 

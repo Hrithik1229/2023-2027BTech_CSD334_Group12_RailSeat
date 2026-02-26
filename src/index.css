@@ -71,7 +71,7 @@
 
   0%,
   100% {
-    box-shadow: 0 0 18px 2px hsl(210 80% 50% / 0.30), 0 4px 16px hsl(220 80% 40% / 0.25);
+    box-shadow: 0 0 18px 2px hsl(210 80% 50% / 0.30), 0 4px 16px #144bb840;
   }
 
   50% {
@@ -96,6 +96,404 @@
   transform: translateY(0px) scale(0.97);
 }
 
+/* ── Pay Now Button (Uiverse.io by fthisilak) ──────────────────────────────── */
+.pay-btn {
+  position: relative;
+  padding: 12px 28px;
+  font-size: 16px;
+  background: #144bb8;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.3s ease;
+  min-width: 160px;
+}
+
+.pay-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+}
+
+.pay-btn:active {
+  transform: translateY(0);
+}
+
+.pay-btn .icon-container {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.pay-btn .icon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 24px;
+  height: 24px;
+  color: #22c55e;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.pay-btn .default-icon {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Hide default wallet on hover, cycle through others */
+.pay-btn:hover .wallet-icon {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.pay-btn:hover .card-icon {
+  animation: iconRotate 2.5s infinite;
+  animation-delay: 0s;
+}
+
+.pay-btn:hover .payment-icon {
+  animation: iconRotate 2.5s infinite;
+  animation-delay: 0.5s;
+}
+
+.pay-btn:hover .dollar-icon {
+  animation: iconRotate 2.5s infinite;
+  animation-delay: 1s;
+}
+
+.pay-btn:hover .check-icon {
+  animation: iconRotate 2.5s infinite;
+  animation-delay: 1.5s;
+}
+
+/* Active / pressed: show only checkmark */
+.pay-btn:active .icon {
+  animation: none !important;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.pay-btn:active .check-icon {
+  animation: checkmarkAppear 0.6s ease forwards !important;
+  visibility: visible;
+  opacity: 1;
+}
+
+.pay-btn .btn-text {
+  font-weight: 600;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+@keyframes iconRotate {
+  0% {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(10px) scale(0.5);
+  }
+
+  5% {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+  }
+
+  15% {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+  }
+
+  20% {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px) scale(0.5);
+  }
+
+  100% {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px) scale(0.5);
+  }
+}
+
+@keyframes checkmarkAppear {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) rotate(-45deg);
+  }
+
+  50% {
+    opacity: 0.5;
+    transform: scale(1.2) rotate(0deg);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* ── Hero "Book Ticket" compass-spin button (Uiverse.io by vinodjangid07) ──── */
+.hero-explore-btn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 0 28px 0 18px;
+  height: 56px;
+  background-color: #144bb8;
+  border-radius: 9999px;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 1.1rem;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.5s ease, transform 0.2s ease, box-shadow 0.3s ease;
+  box-shadow: 5px 5px 18px rgba(20, 75, 184, 0.35);
+  white-space: nowrap;
+}
+
+.hero-explore-btn:hover {
+  background-color: #1a5ed4;
+  box-shadow: 5px 5px 22px rgba(20, 75, 184, 0.5);
+}
+
+.hero-explore-btn:active {
+  transform: scale(0.97);
+  transition-duration: 0.2s;
+}
+
+.hero-explore-svg {
+  height: 28px;
+  width: 28px;
+  flex-shrink: 0;
+  fill: #ffffff;
+  transition: transform 1.5s ease;
+}
+
+.hero-explore-btn:hover .hero-explore-svg {
+  transform: rotate(250deg);
+}
+
+/* ── Server Down / 404 Train Scene (Uiverse.io by rohit_4476) ──────────────── */
+.not_found_body {
+  min-height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+}
+
+.not_found_container {
+  width: 100%;
+  padding: 0 16px;
+}
+
+.not_found_main {
+  margin: 0 auto;
+}
+
+.not_found_svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* SVG fill/stroke classes */
+.not_found_st0 {
+  fill: #fff;
+}
+
+.not_found_st2 {
+  fill: #5d89af;
+}
+
+.not_found_st3 {
+  fill: #709abf;
+}
+
+.not_found_st4,
+.not_found_st6 {
+  fill: #fff;
+  stroke: #b3dcdf;
+  stroke-miterlimit: 10;
+}
+
+.not_found_st6 {
+  stroke: #5d89af;
+  stroke-width: 2;
+}
+
+.not_found_st7,
+.not_found_st8,
+.not_found_st9 {
+  stroke: #709abf;
+  stroke-miterlimit: 10;
+}
+
+.not_found_st7 {
+  stroke-width: 5;
+  stroke-linecap: round;
+  fill: none;
+}
+
+.not_found_st8 {
+  fill: #fff;
+}
+
+.not_found_st9 {
+  fill: none;
+}
+
+.not_found_st10 {
+  font-family: system-ui, sans-serif;
+  font-weight: 700;
+  fill: #5d89af;
+}
+
+/* Cloud animations */
+#not_found_cloud1 {
+  animation: not_found_cloud003 15s linear infinite;
+}
+
+#not_found_cloud2 {
+  animation: not_found_cloud002 25s linear infinite;
+}
+
+#not_found_cloud3 {
+  animation: not_found_cloud003 20s linear infinite;
+}
+
+#not_found_cloud4 {
+  animation: not_found_float 4s linear infinite;
+}
+
+#not_found_cloud5 {
+  animation: not_found_float 8s linear infinite;
+}
+
+/* Track & terrain slide */
+#not_found_tracks {
+  animation: not_found_slide 650ms linear infinite;
+}
+
+#not_found_bumps {
+  animation: not_found_land 10000ms linear infinite;
+}
+
+/* Train jiggle */
+#not_found_car-layers {
+  animation: not_found_jig 0.35s linear infinite;
+}
+
+/* Wheel brace wiggle */
+#not_found_bracefront,
+#not_found_braceback {
+  animation: not_found_braces 1s linear infinite;
+}
+
+@keyframes not_found_jig {
+  0% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(1px);
+  }
+
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+@keyframes not_found_land {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(1000px);
+  }
+}
+
+@keyframes not_found_slide {
+  from {
+    transform: translateX(0px);
+  }
+
+  to {
+    transform: translateX(100px);
+  }
+}
+
+@keyframes not_found_cloud002 {
+  0% {
+    transform: translateX(-1000px) translateY(3px);
+  }
+
+  100% {
+    transform: translateX(1000px) translateY(0);
+  }
+}
+
+@keyframes not_found_cloud003 {
+  0% {
+    transform: translateX(-1000px) translateY(3px);
+  }
+
+  100% {
+    transform: translateX(1000px) translateY(0);
+  }
+}
+
+@keyframes not_found_float {
+  0% {
+    transform: translateY(0px) translateX(0);
+  }
+
+  50% {
+    transform: translateY(8px) translateX(5px);
+  }
+
+  100% {
+    transform: translateY(0px) translateX(0);
+  }
+}
+
+@keyframes not_found_braces {
+  0% {
+    transform: translateX(-2px);
+  }
+
+  25% {
+    transform: translateX(3px);
+  }
+
+  50% {
+    transform: translateX(-2px);
+  }
+
+  75% {
+    transform: translateX(3px);
+  }
+
+  100% {
+    transform: translateX(-2px);
+  }
+}
+
+@media (max-width: 600px) {
+  .not_found_container {
+    padding: 20px 10px;
+  }
+}
 
 *,
 :after,

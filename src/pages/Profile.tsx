@@ -4,9 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { clearStoredUser, getMyBookings, getStoredUser, setStoredUser, updateUserProfile, type Booking } from "@/lib/api";
+import { API_BASE, clearStoredUser, getMyBookings, getStoredUser, setStoredUser, updateUserProfile, type Booking } from "@/lib/api";
 import { format } from "date-fns";
-import { Calendar, LogOut, Ticket, Train } from "lucide-react";
+import { Calendar, Download, LogOut, Ticket, Train } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -20,7 +20,33 @@ const Profile = () => {
   const [email, setEmail] = useState(user?.email ?? "");
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const { toast } = useToast();
+
+  const handleDownloadTicket = async (bookingId: number, pnr: string) => {
+    setDownloadingId(bookingId);
+    try {
+      const res = await fetch(`${API_BASE}/bookings/${bookingId}/download-ticket`);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Download failed");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `RailSeat_${pnr}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Download failed";
+      toast({ variant: "destructive", title: msg });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const handleLogout = () => {
     clearStoredUser();
@@ -206,51 +232,78 @@ const Profile = () => {
                 {bookings.map((b) => (
                   <li
                     key={b.booking_id}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-lg border border-border bg-muted/30"
+                    className="flex flex-col gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 transition-colors"
                   >
-                    <div className="space-y-1">
-                      <p className="font-semibold flex items-center gap-2">
-                        <Ticket className="h-4 w-4 text-primary" />
-                        PNR: {b.booking_number}
-                      </p>
-                      <p className="text-sm text-muted-foreground flex items-center gap-1">
-                        <Train className="h-3.5 w-3" />
-                        {b.train?.train_name ?? "Train"} • {b.source_station} → {b.destination_station}
-                      </p>
-                      <p className="text-sm text-muted-foreground flex items-center gap-1">
-                        <Calendar className="h-3.5 w-3" />
-                        {format(new Date(b.travel_date), "PPP")}
-                      </p>
-                      <p className="text-sm">
-                        Amount: ₹{Number(b.total_amount).toFixed(2)} • Status:{" "}
-                        <span className="capitalize">{b.booking_status}</span>
-                      </p>
-                      
-                      {/* Passenger Details */}
-                      {b.passengers && b.passengers.length > 0 && (
-                        <div className="mt-4 pt-3 border-t border-border">
-                          <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Passenger Details</p>
-                          <div className="grid gap-2">
-                            {b.passengers.map((p: any, idx: number) => (
-                              <div key={idx} className="flex flex-wrap justify-between items-center text-sm bg-background/50 p-2 rounded border border-border/50">
-                                <span className="font-medium">{p.passenger_name} <span className="text-muted-foreground text-xs">({p.passenger_gender})</span></span>
-                                <span className="text-muted-foreground font-mono text-xs">
-                                  {p.seat ? (
-                                    <>
-                                      COACH <span className="font-bold text-foreground">{p.seat.coach?.coach_number}</span> • 
-                                      SEAT <span className="font-bold text-foreground">{p.seat.seat_number}</span> • 
-                                      <span className="ml-1">{p.seat.berth_type}</span>
-                                    </>
-                                  ) : (
-                                    "Unassigned"
-                                  )}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+                    {/* Top row: summary + download button */}
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        <p className="font-semibold flex items-center gap-2">
+                          <Ticket className="h-4 w-4 text-primary" />
+                          PNR: {b.booking_number}
+                        </p>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          <Train className="h-3.5 w-3" />
+                          {b.train?.train_name ?? "Train"} • {b.source_station} → {b.destination_station}
+                        </p>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          <Calendar className="h-3.5 w-3" />
+                          {format(new Date(b.travel_date), "PPP")}
+                        </p>
+                        <p className="text-sm">
+                          Amount: ₹{Number(b.total_amount).toFixed(2)} •{" "}
+                          <span
+                            className={`capitalize font-semibold ${
+                              b.booking_status === "confirmed"
+                                ? "text-green-600"
+                                : b.booking_status === "cancelled"
+                                ? "text-red-500"
+                                : "text-amber-500"
+                            }`}
+                          >
+                            {b.booking_status}
+                          </span>
+                        </p>
+                      </div>
+
+                      {/* Download button — only for confirmed + paid bookings */}
+                      {(b.payment_status === "paid" || b.booking_status === "confirmed") && (
+                        <Button 
+                          size="sm"
+                          onClick={() => handleDownloadTicket(b.booking_id, b.booking_number)}
+                          disabled={downloadingId === b.booking_id}
+                          className="cssbuttons-io-button"
+                        >
+                          
+                          <Download className="h-4 w-4" />
+                          {downloadingId === b.booking_id ? "Generating…" : "Download Ticket"}
+                        </Button>
                       )}
                     </div>
+
+                    {/* Passenger details */}
+                    {b.passengers && b.passengers.length > 0 && (
+                      <div className="pt-3 border-t border-border">
+                        <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Passenger Details</p>
+                        <div className="grid gap-2">
+                          {b.passengers.map((p: any, idx: number) => (
+                            <div key={idx} className="flex flex-wrap justify-between items-center text-sm bg-background/50 p-2 rounded border border-border/50">
+                              <span className="font-medium">{p.passenger_name} <span className="text-muted-foreground text-xs">({p.passenger_gender})</span></span>
+                              <span className="text-muted-foreground font-mono text-xs">
+                                {p.seat ? (
+                                  <>
+                                    COACH <span className="font-bold text-foreground">{p.seat.coach?.coach_number}</span> •{" "}
+                                    SEAT <span className="font-bold text-foreground">{p.seat.seat_number}</span> •{" "}
+                                    <span className="ml-1">{p.seat.berth_type}</span>
+                                  </>
+                                ) : (
+                                  "Unassigned"
+                                )}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>

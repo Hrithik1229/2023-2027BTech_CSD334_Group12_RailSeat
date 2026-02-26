@@ -381,7 +381,17 @@ const SeatBooking = () => {
             if (response.success) {
                 setShowPassengerForm(true);
             } else {
-                toast.error(response.message || "Failed to lock seats");
+                // Map the conflicting DB seat_id back to the display seat number
+                // so the toast matches what the user sees on the seat button
+                if (response.conflictingSeatId !== undefined) {
+                    const conflictSeat = selectedSeats.find(
+                        s => parseInt(s.id) === response.conflictingSeatId
+                    );
+                    const displayNumber = conflictSeat ? conflictSeat.number : response.conflictingSeatId;
+                    toast.error(`Seat ${displayNumber} is already selected by another user. Please choose a different seat.`);
+                } else {
+                    toast.error(response.message || "Failed to lock seats");
+                }
             }
         });
     } else {
