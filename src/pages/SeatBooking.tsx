@@ -13,6 +13,16 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'sonner';
 
+// ─── Razorpay global type declaration ─────────────────────────────────────────
+declare global {
+  interface Window {
+    Razorpay: new (options: Record<string, unknown>) => {
+      open: () => void;
+      on: (event: string, handler: (response: Record<string, unknown>) => void) => void;
+    };
+  }
+}
+
 const SeatBooking = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -379,80 +389,165 @@ const SeatBooking = () => {
     }
   };
 
+  // ── Razorpay checkout handler ──────────────────────────────────────────────
   const handlePassengerConfirm = async (passengers: PassengerDetails[]) => {
     setIsLoading(true);
     try {
-        const user = getStoredUser();
+      const user = getStoredUser();
+      const travelDateStr = isoDate || new Date().toISOString().split('T')[0];
 
-        let finalTotalAmount = selectedSeats.reduce((sum, s) => sum + (s.price || 0), 0);
-        
-        // Calculate Concession for PWD
-        if (quota === 'WD' && disabilityType) {
-             const discounts: Record<string, number> = {
-                'BLIND': 0.75,
-                'ORTHOPEDIC': 0.75,
-                'DEAF_DUMB': 0.50,
-                'MENTAL': 0.75,
-                'CANCER': 0.50, 
-                'PATIENT': 0.50
-            };
-            const discountPct = discounts[disabilityType] || 0;
-            const concession = Math.round(finalTotalAmount * discountPct);
-            finalTotalAmount -= concession;
-        }
+      // ── Step 1: Calculate final amount (with PWD concession if applicable) ──
+      let finalTotalAmount = selectedSeats.reduce((sum, s) => sum + (s.price || 0), 0);
 
-        const payload = {
-            contactName: passengers[0].name,
-            email: user?.email ?? passengers[0].name + "@guest.local",
-            userId: user?.user_id ?? undefined,
-            trainId: train.id,
-            sourceStation: source,
-            destinationStation: destination,
-            travelDate: isoDate || new Date().toISOString().split('T')[0],
-            seats: selectedSeats.map(s => ({ 
-                seatId: parseInt(s.id),
-                price: s.price 
-            })),
-            totalAmount: finalTotalAmount,
-            passengers: passengers.map(p => ({
-                name: p.name,
-                gender: p.gender
-            })),
-            socketId: socket?.id,
-            quota: quota, 
-            disabilityType: disabilityType 
+      if (quota === 'WD' && disabilityType) {
+        const discounts: Record<string, number> = {
+          BLIND: 0.75,
+          ORTHOPEDIC: 0.75,
+          DEAF_DUMB: 0.50,
+          MENTAL: 0.75,
+          CANCER: 0.50,
+          PATIENT: 0.50,
         };
+        const discountPct = discounts[disabilityType] || 0;
+        finalTotalAmount -= Math.round(finalTotalAmount * discountPct);
+      }
 
-        const response = await fetch(`${API_BASE}/bookings`, {
+      const seatsPayload = selectedSeats.map(s => ({ seatId: parseInt(s.id), price: s.price }));
+
+      // ── Step 2: Create Razorpay order on backend ─────────────────────────────
+      const orderRes = await fetch(`${API_BASE}/payments/create-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          totalAmount: finalTotalAmount,
+          seats: seatsPayload,
+          socketId: socket?.id,
+          travelDate: travelDateStr,
+          trainId: train.id,
+        }),
+      });
+
+      if (!orderRes.ok) {
+        const errData = await orderRes.json();
+        throw new Error(errData.error || 'Failed to create payment order.');
+      }
+
+      const order = await orderRes.json();
+      setIsLoading(false); // Allow Razorpay modal to render
+
+      // ── Step 3: Ensure Razorpay script is loaded ─────────────────────────────
+      if (!window.Razorpay) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error('Failed to load Razorpay SDK'));
+          document.body.appendChild(script);
+        });
+      }
+
+      // ── Step 4: Build booking payload (passed along to verify endpoint) ──────
+      const bookingPayload = {
+        contactName: passengers[0].name,
+        email: user?.email ?? passengers[0].name + '@guest.local',
+        userId: user?.user_id ?? undefined,
+        trainId: train.id,
+        sourceStation: source,
+        destinationStation: destination,
+        travelDate: travelDateStr,
+        seats: seatsPayload,
+        totalAmount: finalTotalAmount,
+        passengers: passengers.map(p => ({ name: p.name, gender: p.gender })),
+        socketId: socket?.id,
+        quota: quota,
+        disabilityType: disabilityType,
+      };
+
+      // ── Step 5: Open Razorpay checkout ───────────────────────────────────────
+      const rzp = new window.Razorpay({
+        key: order.key_id,
+        amount: order.amount,
+        currency: order.currency || 'INR',
+        name: 'RailSeat',
+        description: `Train Booking – ${train.name}`,
+        order_id: order.order_id,
+        prefill: {
+          name: passengers[0].name,
+          email: user?.email || '',
+        },
+        theme: { color: '#4F46E5' },
+
+        // ── Payment success handler ─────────────────────────────────────────
+        handler: async (response: Record<string, string>) => {
+          setIsLoading(true);
+          try {
+            const verifyRes = await fetch(`${API_BASE}/payments/verify-payment`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                ...bookingPayload,
+              }),
+            });
+
+            const verifyData = await verifyRes.json();
+
+            if (!verifyRes.ok || !verifyData.verified) {
+              throw new Error(verifyData.error || 'Payment verification failed.');
+            }
+
+            // ── Booking confirmed ───────────────────────────────────────────
+            toast.success('🎉 Booking Confirmed!', {
+              description: (
+                <div className="flex flex-col gap-1">
+                  <span className="font-semibold">PNR: {verifyData.booking.booking_number}</span>
+                  <span>Amount Paid: ₹{finalTotalAmount}</span>
+                  <span className="text-xs text-muted-foreground">Payment ID: {response.razorpay_payment_id}</span>
+                </div>
+              ),
+              duration: 8000,
+            });
+
+            navigate('/book');
+          } catch (err: any) {
+            console.error('Verification error:', err);
+            toast.error(`Payment Verification Failed: ${err.message}`);
+          } finally {
+            setIsLoading(false);
+          }
+        },
+      });
+
+      // ── Payment failure / dismissal handler ──────────────────────────────
+      rzp.on('payment.failed', async (resp: Record<string, unknown>) => {
+        console.error('Razorpay payment failed:', resp);
+        toast.error('Payment failed. Your seats have been released.');
+
+        // Release locks
+        try {
+          await fetch(`${API_BASE}/payments/release-seats`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-             throw new Error(errorData.error || 'Booking failed');
+            body: JSON.stringify({
+              socketId: socket?.id,
+              seats: seatsPayload,
+              travelDate: travelDateStr,
+              trainId: train.id,
+            }),
+          });
+        } catch (e) {
+          console.error('Failed to release seats after payment failure:', e);
         }
+      });
 
-        const bookingData = await response.json();
-        
-        toast.success(`Booking Confirmed!`, {
-            description: (
-                <div className="flex flex-col gap-1">
-                    <span className="font-semibold">PNR: {bookingData.booking_number}</span>
-                    <span>Total Amount: ₹{finalTotalAmount}</span>
-                </div>
-            ),
-            duration: 6000,
-        });
-
-        navigate('/book'); 
+      rzp.open();
 
     } catch (error: any) {
-        console.error("Booking Error:", error);
-        toast.error(`Booking Failed: ${error.message}`);
-    } finally {
-        setIsLoading(false);
+      console.error('Booking Error:', error);
+      toast.error(`Booking Failed: ${error.message}`);
+      setIsLoading(false);
     }
   };
 
