@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { API_BASE, clearStoredUser, getMyBookings, getStoredUser, setStoredUser, updateUserProfile, type Booking } from "@/lib/api";
 import { format } from "date-fns";
-import { Calendar, Download, LogOut, Ticket, Train } from "lucide-react";
+import { Calendar, LogOut, Ticket, Train } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -24,6 +24,7 @@ const Profile = () => {
   const { toast } = useToast();
 
   const handleDownloadTicket = async (bookingId: number, pnr: string) => {
+    if (downloadingId !== null) return; // already downloading
     setDownloadingId(bookingId);
     try {
       const res = await fetch(`${API_BASE}/bookings/${bookingId}/download-ticket`);
@@ -44,7 +45,8 @@ const Profile = () => {
       const msg = err instanceof Error ? err.message : "Download failed";
       toast({ variant: "destructive", title: msg });
     } finally {
-      setDownloadingId(null);
+      // Reset after the full animation completes (~4 s)
+      setTimeout(() => setDownloadingId(null), 4000);
     }
   };
 
@@ -267,16 +269,36 @@ const Profile = () => {
 
                       {/* Download button — only for confirmed + paid bookings */}
                       {(b.payment_status === "paid" || b.booking_status === "confirmed") && (
-                        <Button 
-                          size="sm"
-                          onClick={() => handleDownloadTicket(b.booking_id, b.booking_number)}
-                          disabled={downloadingId === b.booking_id}
-                          className="cssbuttons-io-button"
-                        >
-                          
-                          <Download className="h-4 w-4" />
-                          {downloadingId === b.booking_id ? "Generating…" : "Download Ticket"}
-                        </Button>
+                        <div className="dl-btn-container">
+                          <label
+                            className={`dl-btn-label${
+                              downloadingId === b.booking_id ? " dl-btn-checked" : ""
+                            }`}
+                            onClick={() => handleDownloadTicket(b.booking_id, b.booking_number)}
+                          >
+                            <input type="checkbox" className="dl-btn-input" readOnly checked={downloadingId === b.booking_id} />
+                            <span className="dl-btn-circle">
+                              <svg
+                                className="dl-btn-icon"
+                                aria-hidden="true"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  stroke="currentColor"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth="1.5"
+                                  d="M12 19V5m0 14-4-4m4 4 4-4"
+                                />
+                              </svg>
+                              <div className="dl-btn-square"></div>
+                            </span>
+                            <p className="dl-btn-title">Download</p>
+                            <p className="dl-btn-title">Done</p>
+                          </label>
+                        </div>
                       )}
                     </div>
 

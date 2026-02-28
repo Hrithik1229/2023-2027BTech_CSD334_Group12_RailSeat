@@ -96,6 +96,225 @@
   transform: translateY(0px) scale(0.97);
 }
 
+/* ── Download Ticket Button (Uiverse.io by Na3ar-17) ──────────────────────── */
+.dl-btn-container {
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.dl-btn-label {
+  background-color: transparent;
+  border: 2px solid rgb(91, 91, 240);
+  display: flex;
+  align-items: center;
+  border-radius: 50px;
+  width: 160px;
+  cursor: pointer;
+  transition: all 0.4s ease;
+  padding: 5px;
+  position: relative;
+}
+
+.dl-btn-label::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: #fff;
+  width: 8px;
+  height: 8px;
+  transition: all 0.4s ease;
+  border-radius: 100%;
+  margin: auto;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.dl-btn-input {
+  display: none;
+}
+
+.dl-btn-title {
+  font-size: 14px;
+  color: rgb(91, 91, 240);
+  transition: all 0.4s ease;
+  position: absolute;
+  right: 18px;
+  bottom: 14px;
+  text-align: center;
+  white-space: nowrap;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.dl-btn-title:last-child {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.dl-btn-circle {
+  height: 45px;
+  width: 45px;
+  border-radius: 50%;
+  background-color: rgb(91, 91, 240);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: all 0.4s ease;
+  position: relative;
+  box-shadow: 0 0 0 0 rgb(255, 255, 255);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.dl-btn-icon {
+  color: #fff;
+  width: 30px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  transition: all 0.4s ease;
+}
+
+.dl-btn-square {
+  aspect-ratio: 1;
+  width: 15px;
+  border-radius: 2px;
+  background-color: #fff;
+  opacity: 0;
+  visibility: hidden;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  transition: all 0.4s ease;
+}
+
+.dl-btn-circle::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  background-color: #3333a8;
+  width: 100%;
+  height: 0;
+  transition: all 0.4s ease;
+}
+
+/* Checked states */
+.dl-btn-label.dl-btn-checked {
+  width: 57px;
+  animation: dl-installed 0.4s ease 3.5s forwards;
+}
+
+.dl-btn-label.dl-btn-checked::before {
+  animation: dl-rotate 3s ease-in-out 0.4s forwards;
+}
+
+.dl-btn-label.dl-btn-checked .dl-btn-circle {
+  animation: dl-pulse 1s forwards, dl-circleDelete 0.2s ease 3.5s forwards;
+  rotate: 180deg;
+}
+
+.dl-btn-label.dl-btn-checked .dl-btn-circle::before {
+  animation: dl-installing 3s ease-in-out forwards;
+}
+
+.dl-btn-label.dl-btn-checked .dl-btn-icon {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.dl-btn-label.dl-btn-checked .dl-btn-square {
+  opacity: 1;
+  visibility: visible;
+}
+
+.dl-btn-label.dl-btn-checked .dl-btn-title {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.dl-btn-label.dl-btn-checked .dl-btn-title:last-child {
+  animation: dl-showOpenMessage 0.4s ease 3.5s forwards;
+}
+
+@keyframes dl-pulse {
+  0% {
+    scale: 0.95;
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+  }
+
+  70% {
+    scale: 1;
+    box-shadow: 0 0 0 16px rgba(255, 255, 255, 0);
+  }
+
+  100% {
+    scale: 0.95;
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
+@keyframes dl-installing {
+  from {
+    height: 0;
+  }
+
+  to {
+    height: 100%;
+  }
+}
+
+@keyframes dl-rotate {
+  0% {
+    transform: rotate(-90deg) translate(27px) rotate(0);
+    opacity: 1;
+    visibility: visible;
+  }
+
+  99% {
+    transform: rotate(270deg) translate(27px) rotate(270deg);
+    opacity: 1;
+    visibility: visible;
+  }
+
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+@keyframes dl-installed {
+  100% {
+    width: 150px;
+    border-color: rgb(35, 174, 35);
+  }
+}
+
+@keyframes dl-circleDelete {
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+@keyframes dl-showOpenMessage {
+  100% {
+    opacity: 1;
+    visibility: visible;
+    right: 56px;
+  }
+}
+
 /* ── Pay Now Button (Uiverse.io by fthisilak) ──────────────────────────────── */
 .pay-btn {
   position: relative;
