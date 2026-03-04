@@ -1,4 +1,5 @@
 import Navbar from '@/components/Navbar';
+import TrainInlineTracker from '@/components/TrainInlineTracker';
 import { Button } from '@/components/ui/button';
 import {
     Select,
@@ -11,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { API_BASE } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { ArrowLeft, ArrowRight, Clock, Filter, MapPin, Train as TrainIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Clock, Filter, MapPin, Radio, Train as TrainIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -22,6 +23,7 @@ interface CoachSummary {
 }
 
 interface TrainData {
+    run_id?: number;
     train_id: number;
     train_number: string;
     train_name: string;
@@ -59,6 +61,8 @@ const TrainResults = () => {
   const [trains, setTrains] = useState<TrainData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [sortBy, setSortBy] = useState("departure");
+  // Which card has the inline tracker expanded (keyed by run_id or train_id as string)
+  const [expandedTrackerId, setExpandedTrackerId] = useState<string | null>(null);
 
   const source = searchParams.get('source');
   const destination = searchParams.get('destination');
@@ -202,6 +206,8 @@ const TrainResults = () => {
                         );
 
                     const totalSeats = summary.reduce((s, c) => s + c.total_seats, 0);
+                    const trackId = String(train.run_id ?? train.train_id);
+                    const isTracking = expandedTrackerId === trackId;
 
                     return (
                         <div 
@@ -249,7 +255,7 @@ const TrainResults = () => {
                                     </div>
                                  </div>
 
-                                 {/* Action */}
+                                 {/* Action column */}
                                  <div className="flex flex-col items-center gap-3 md:w-1/5">
                                     <p className="text-xs text-green-600 font-semibold">
                                         {totalSeats} Seats Available
@@ -261,6 +267,19 @@ const TrainResults = () => {
                                         View Seats
                                         <ArrowRight className="w-4 h-4 ml-2" />
                                     </Button>
+                                    {/* Track Live — toggles inline horizontal tracker */}
+                                    <button
+                                        onClick={() => setExpandedTrackerId(prev => prev === trackId ? null : trackId)}
+                                        className={cn(
+                                          "w-full flex items-center justify-center gap-1.5 text-xs font-semibold border rounded-xl py-2 transition-all",
+                                          isTracking
+                                            ? "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20"
+                                            : "text-blue-600 border-blue-200 bg-blue-50 hover:bg-blue-100"
+                                        )}
+                                    >
+                                        <Radio className="w-3 h-3 animate-pulse" />
+                                        {isTracking ? 'Hide Tracker' : 'Track Live'}
+                                    </button>
                                  </div>
                             </div>
 
@@ -297,6 +316,13 @@ const TrainResults = () => {
                                     </div>
                                 )}
                             </div>
+
+                            {/* Inline horizontal live tracker — expands inside the card */}
+                            <TrainInlineTracker
+                              runId={trackId}
+                              isOpen={isTracking}
+                              onToggle={() => setExpandedTrackerId(prev => prev === trackId ? null : trackId)}
+                            />
                         </div>
                     );
                 })}

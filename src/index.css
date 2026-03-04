@@ -66,6 +66,41 @@
   animation: fade-in 0.5s ease-out forwards;
 }
 
+/* ── Train Live Tracker Animations ──────────────────────────── */
+@keyframes tracker-pulse {
+
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5);
+  }
+
+  50% {
+    transform: scale(1.12);
+    box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+  }
+}
+
+@keyframes tracker-ride {
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+.train-tracker-pulse {
+  animation: tracker-pulse 1.6s ease-in-out infinite;
+}
+
+.train-tracker-ride {
+  animation: tracker-ride 0.8s ease-in-out infinite;
+}
+
 /* ── Get Started Button ─────────────────────────────────────── */
 @keyframes btn-glow-pulse {
 

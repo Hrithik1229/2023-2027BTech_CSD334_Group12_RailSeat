@@ -1,4 +1,5 @@
 import Navbar from '@/components/Navbar';
+import TrainInlineTracker from '@/components/TrainInlineTracker';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -18,12 +19,13 @@ import { API_BASE, getStoredUser } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, CalendarDays, Clock, MapPin, MapPinOff, Train as TrainIcon, UtensilsCrossed, Wifi } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, Clock, MapPin, MapPinOff, Radio, Train as TrainIcon, UtensilsCrossed, Wifi } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 interface TrainData {
   id: string;
+  runId: string;        // always the run_id for the tracker
   number: string;
   name: string;
   coaches: string[];
@@ -54,6 +56,7 @@ const TrainSelection = () => {
   const [destination, setDestination] = useState<string>('');
   const [date, setDate] = useState<Date>();
   const [selectedTrain, setSelectedTrain] = useState<string>('');
+  const [expandedTrackerId, setExpandedTrackerId] = useState<string | null>(null);
   
   const [trains, setTrains] = useState<TrainData[]>([]);
   const [stations, setStations] = useState<string[]>([]);
@@ -83,6 +86,7 @@ const TrainSelection = () => {
           // Map search results to TrainData format
           const mappedTrains: TrainData[] = data.map((result: any) => ({
             id: result.run_id.toString(),
+            runId: result.run_id.toString(),
             number: result.train_number,
             name: result.train_name,
             coaches: result.coaches ? result.coaches.map((c: any) => c.coach_number) : [],
@@ -106,6 +110,7 @@ const TrainSelection = () => {
           
           const mappedTrains: TrainData[] = data.map((t: any) => ({
             id: t.train_id.toString(),
+            runId: t.runs?.[0]?.run_id?.toString() || t.train_id.toString(),
             number: t.train_number,
             name: t.train_name,
             coaches: t.coaches ? t.coaches.map((c: any) => c.coach_number) : [],
@@ -645,7 +650,7 @@ const TrainSelection = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 * index }}
-                  whileHover={{ y: -4 }}
+                  whileHover={expandedTrackerId === train.id ? {} : { y: -4 }}
                   onClick={() => setSelectedTrain(train.id)}
                   className={cn(
                     "group bg-white rounded-3xl p-6 cursor-pointer transition-all duration-300 relative overflow-hidden",
@@ -732,17 +737,42 @@ const TrainSelection = () => {
                                       <span className="text-xs font-bold text-slate-400">+{train.coaches.length - 3} more</span>
                                   )}
                               </div>
-                              <div className="flex items-center gap-4 text-xs font-medium text-slate-400">
+                              <div className="flex items-center gap-3 text-xs font-medium text-slate-400">
                                   <span className="flex items-center gap-1.5 bg-green-50 text-green-700 px-2 py-1 rounded-md">
                                       <Wifi className="w-3 h-3" /> WiFi
                                   </span>
                                   <span className="flex items-center gap-1.5 bg-orange-50 text-orange-700 px-2 py-1 rounded-md">
                                       <UtensilsCrossed className="w-3 h-3" /> Pantry
                                   </span>
+                                  {/* Track Train Button */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setExpandedTrackerId(prev => prev === train.id ? null : train.id);
+                                    }}
+                                    className={cn(
+                                      "flex items-center gap-1.5 border px-2.5 py-1 rounded-md transition-all font-semibold text-xs",
+                                      expandedTrackerId === train.id
+                                        ? "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20"
+                                        : "bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100 hover:border-blue-200"
+                                    )}
+                                  >
+                                    <Radio className="w-3 h-3 animate-pulse" />
+                                    {expandedTrackerId === train.id ? 'Hide' : 'Track'}
+                                  </button>
                               </div>
                           </div>
                       </div>
                   </div>
+                  {/* ── Inline Live Tracker (expands inside the card) ── */}
+                  <TrainInlineTracker
+                    runId={train.runId}
+                    isOpen={expandedTrackerId === train.id}
+                    onToggle={(e) => {
+                      e.stopPropagation();
+                      setExpandedTrackerId(prev => prev === train.id ? null : train.id);
+                    }}
+                  />
                 </motion.div>
               ))}
               
