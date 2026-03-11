@@ -480,6 +480,7 @@ const SeatBooking = () => {
         currency: order.currency || 'INR',
         name: 'RailSeat',
         description: `Train Booking – ${train.name}`,
+        image: `${window.location.origin}/logo%20(2).png`,
         order_id: order.order_id,
         prefill: {
           name: passengers[0].name,

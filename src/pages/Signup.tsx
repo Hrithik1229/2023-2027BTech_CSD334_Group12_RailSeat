@@ -1,8 +1,4 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -11,8 +7,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { signup, setStoredUser } from "@/lib/api";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { setStoredUser, signup } from "@/lib/api";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 
 const Signup = () => {
   const [username, setUsername] = useState("");
@@ -67,8 +67,7 @@ const Signup = () => {
                 <Input
                   id="username"
                   type="text"
-                  placeholder="johndoe"
-                  value={username}
+                  placeholder="Enter your username"                value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   required
                   autoComplete="username"
@@ -80,7 +79,7 @@ const Signup = () => {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder="Enter your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -93,7 +92,7 @@ const Signup = () => {
                 <Input
                   id="password"
                   type="password"
-                  placeholder="••••••••"
+                  placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required

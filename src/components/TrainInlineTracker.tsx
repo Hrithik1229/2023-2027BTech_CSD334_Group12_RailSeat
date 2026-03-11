@@ -21,7 +21,7 @@ import {
     Radio,
     Train as TrainIcon,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STOP_WIDTH  = 175;   // px — horizontal space per station
@@ -113,9 +113,11 @@ export default function TrainInlineTracker({ runId, isOpen, onToggle }: TrainInl
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [now, setNow]           = useState(new Date());
-  const [containerW, setContainerW] = useState(0);
+  const [containerW, setContainerW] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hasLoaded    = useRef(false);
+  // Sync ref so translateX can read real width without waiting for a re-render
+  const widthRef     = useRef<number>(0);
 
   // Fetch once on first open
   useEffect(() => {
@@ -141,24 +143,41 @@ export default function TrainInlineTracker({ runId, isOpen, onToggle }: TrainInl
     return () => clearInterval(id);
   }, [isOpen]);
 
-  // Measure container
-  useEffect(() => {
+  // Re-measure whenever: tracker opens, OR data finishes loading (stops.length changes).
+  // containerRef is on the always-rendered outer div, so it is never null here.
+  useLayoutEffect(() => {
     if (!isOpen || !containerRef.current) return;
-    const obs = new ResizeObserver(([e]) => setContainerW(e.contentRect.width));
+    const measure = () => {
+      const w = containerRef.current!.getBoundingClientRect().width;
+      widthRef.current = w;
+      setContainerW(w);
+    };
+    measure(); // snapshot immediately
+    const obs = new ResizeObserver(measure);
     obs.observe(containerRef.current);
     return () => obs.disconnect();
-  }, [isOpen]);
+  }, [isOpen, stops.length]); // re-fires after fetch completes
+
+  // Ensure the stops array is sorted the same way as inside getLocation,
+  // so that render-loop index `i` always matches loc.currentStopIndex.
+  const sortedStops = [...stops].sort((a, b) => a.stop_order - b.stop_order);
 
   // Virtual position
-  const loc     = stops.length ? getLocation(stops, now) : null;
-  const n       = stops.length;
+  const loc     = sortedStops.length ? getLocation(sortedStops, now) : null;
+  const n       = sortedStops.length;
   const stripW  = n * STOP_WIDTH;
   // trainPx: pixel position of train inside the strip (0 = start, stripW = end)
-  // mapped so 0% → first station center and 100% → last station center
-  const trainPx = loc && n > 1
-    ? STOP_WIDTH / 2 + (loc.progressPercent / 100) * (n - 1) * STOP_WIDTH
+  // Station i's badge center in the strip = i * STOP_WIDTH + STOP_WIDTH/2
+  // progressPercent maps 0→station-0-center and 100→station-(n-1)-center
+  const trainPx = loc
+    ? n > 1
+      ? STOP_WIDTH / 2 + (loc.progressPercent / 100) * (n - 1) * STOP_WIDTH
+      : STOP_WIDTH / 2
     : STOP_WIDTH / 2;
-  const translateX = containerW > 0 ? containerW / 2 - trainPx : 0;
+  // Use the live widthRef value so we always get the current width even before
+  // the state update from ResizeObserver has caused a re-render.
+  const effectiveW = containerW ?? widthRef.current;
+  const translateX = effectiveW > 0 ? effectiveW / 2 - trainPx : null;
 
   // Status colours
   const STATUS = {
@@ -181,7 +200,9 @@ export default function TrainInlineTracker({ runId, isOpen, onToggle }: TrainInl
           style={{ overflow: 'hidden' }}
           onClick={e => e.stopPropagation()}
         >
-          <div className="mt-5 pt-5 border-t border-slate-100 space-y-4">
+          {/* containerRef is here — always in the DOM — so the measurement
+               effect can read its width even while data is still loading */}
+          <div ref={containerRef} className="mt-5 pt-5 border-t border-slate-100 space-y-4">
 
             {/* ── Loading ─────────────────────────────────────────── */}
             {loading && (
@@ -232,7 +253,6 @@ export default function TrainInlineTracker({ runId, isOpen, onToggle }: TrainInl
 
               {/* ── Horizontal track ─────────────────────────────── */}
               <div
-                ref={containerRef}
                 className="relative rounded-2xl overflow-hidden border border-slate-100"
                 style={{ height: 148, background: 'linear-gradient(180deg,#f8fafc 0%,#f1f5f9 100%)' }}
               >
@@ -275,12 +295,16 @@ export default function TrainInlineTracker({ runId, isOpen, onToggle }: TrainInl
                 </div>
 
                 {/* ── Sliding station strip ── */}
+                {/* Only render (and position) once we know the container width */}
                 <div
                   className="absolute top-0 bottom-0"
                   style={{
                     width: stripW,
-                    transform: `translateX(${translateX}px)`,
-                    transition: 'transform 1.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    transform: translateX !== null ? `translateX(${translateX}px)` : undefined,
+                    // Suppress the transition on first paint so the strip doesn't
+                    // fly in from position 0 — it jumps directly to the correct spot.
+                    transition: translateX !== null ? 'transform 1.3s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
+                    visibility: translateX !== null ? 'visible' : 'hidden',
                   }}
                 >
                   {/* Dashed track rail */}
@@ -293,7 +317,7 @@ export default function TrainInlineTracker({ runId, isOpen, onToggle }: TrainInl
                     }}
                   />
 
-                  {/* Colored progress line (past portion) */}
+                  {/* Colored progress line — from first station center to current train position */}
                   {trainPx > STOP_WIDTH / 2 && (
                     <div
                       className="absolute"
@@ -304,12 +328,13 @@ export default function TrainInlineTracker({ runId, isOpen, onToggle }: TrainInl
                         width: Math.max(0, trainPx - STOP_WIDTH / 2),
                         background: 'linear-gradient(to right,#22c55e,#3b82f6)',
                         borderRadius: 2,
+                        transition: 'width 1.3s cubic-bezier(0.4, 0, 0.2, 1)',
                       }}
                     />
                   )}
 
                   {/* ── Station nodes ── */}
-                  {stops.map((stop, i) => {
+                  {sortedStops.map((stop, i) => {
                     const past    = i < loc.currentStopIndex;
                     const current = i === loc.currentStopIndex;
                     const next    = i === loc.nextStopIndex;
