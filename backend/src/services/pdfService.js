@@ -37,6 +37,7 @@ const COACH_LABELS = {
     SL: "Sleeper", "2A": "2nd AC", "3A": "3rd AC",
     "1A": "1st AC", CC: "Chair Car", EC: "Exec Chair",
     "2S": "2nd Sit", EA: "Exec AC", EV: "Vistadome",
+    GEN: "General (Unreserved)",
 };
 
 // ── QR code buffer ────────────────────────────────────────────────────────────
@@ -124,7 +125,7 @@ function infoCell(doc, x, y, label, value, w = 100) {
     doc.restore();
 }
 
-// ── Table row ────────────────────────────────────────────────────────────────
+// ── Table row ─────────────────────────────────────────────────────────────────
 function tableRow(doc, y, cols, isHeader = false, isAlt = false) {
     const rowH = isHeader ? 20 : 17;
     if (isAlt) {
@@ -142,66 +143,65 @@ function tableRow(doc, y, cols, isHeader = false, isAlt = false) {
     return y + rowH;
 }
 
-// ── Seat grid  ────────────────────────────────────────────────────────────────
+// ── Seat grid ─────────────────────────────────────────────────────────────────
 // Returns the Y coordinate immediately after the grid + legend.
 // IMPORTANT: uses ONLY fillRect / direct rectangle + text calls so no
 // PDFKit auto-pagination fires mid-grid.
 function drawSeatLayout(doc, startY, coachData, bookedSeatIds) {
     // Small fixed cell so the whole grid stays compact
     const CELL = 16;
-    const GAP = 2;
-    const x = MARGIN + 10;
+    const GAP  = 2;
+    const x    = MARGIN + 10;
 
+    // Filter out the GEN sentinel seat (seat_number 0) — it has no physical berth
     const seats = [...(coachData.seats || [])]
+        .filter(s => s.seat_number > 0)
         .sort((a, b) => a.seat_number - b.seat_number);
+
+    if (seats.length === 0) return startY;
 
     const coachType = coachData.coach_type;
     let colsPerRow = 6;
-    if (["1A", "2A"].includes(coachType)) colsPerRow = 4;
+    if (["1A", "2A"].includes(coachType))               colsPerRow = 4;
     else if (["CC", "EC", "EA", "2S"].includes(coachType)) colsPerRow = 5;
 
-    const cols = Math.min(colsPerRow, seats.length);
-    // Cap rows so grid never exceeds ~160 px regardless of coach size
-    const maxRows = 8;
+    const cols    = Math.min(colsPerRow, seats.length);
+    const maxRows = 8;   // cap grid height regardless of coach size
     const display = seats.slice(0, cols * maxRows);
 
     let row = 0, col = 0;
     let Y = startY;
 
     for (const seat of display) {
-        const sx = x + col * (CELL + GAP);
-        const sy = Y + row * (CELL + GAP);
+        const sx     = x + col * (CELL + GAP);
+        const sy     = Y + row * (CELL + GAP);
         const booked = bookedSeatIds.has(seat.seat_id);
-        const fill = booked ? C.seatBooked : C.seatAvail;
+        const fill   = booked ? C.seatBooked : C.seatAvail;
         const textCol = booked ? C.white : "#4B5563";
 
-        // Draw cell background
         doc.save().roundedRect(sx, sy, CELL, CELL, 2).fill(fill).restore();
 
-        // Seat number
         doc.save()
             .fillColor(textCol).font("Helvetica-Bold").fontSize(5.5)
-            .text(String(seat.seat_number), sx, sy + 3, { width: CELL, align: "center" });
-        doc.restore();
+            .text(String(seat.seat_number), sx, sy + 3, { width: CELL, align: "center" })
+            .restore();
 
-        // Berth type
         doc.save()
             .fillColor(textCol).font("Helvetica").fontSize(4.5)
-            .text(BERTH_LABELS[seat.berth_type] || seat.berth_type, sx, sy + 10, { width: CELL, align: "center" });
-        doc.restore();
+            .text(BERTH_LABELS[seat.berth_type] || seat.berth_type, sx, sy + 10, { width: CELL, align: "center" })
+            .restore();
 
         col++;
         if (col >= cols) { col = 0; row++; }
     }
 
-    const gridH = Math.ceil(display.length / cols) * (CELL + GAP);
+    const gridH   = Math.ceil(display.length / cols) * (CELL + GAP);
     const legendY = Y + gridH + 6;
 
-    // Legend boxes (coloured squares, plain text)
     let lx = x;
     for (const item of [
         { colour: C.seatBooked, label: "Booked by you" },
-        { colour: C.seatAvail, label: "Available" },
+        { colour: C.seatAvail,  label: "Available" },
     ]) {
         doc.save().rect(lx, legendY, 9, 9).fill(item.colour).restore();
         doc.save()
@@ -224,7 +224,10 @@ function drawSeatLayout(doc, startY, coachData, bookedSeatIds) {
     return legendY + 16;
 }
 
+
+
 // =============================================================================
+
 //  Main: generate ticket PDF and stream to HTTP response
 // =============================================================================
 export async function generateTicketPDF(booking, res) {
@@ -277,6 +280,8 @@ export async function generateTicketPDF(booking, res) {
     const coachNumber = firstSeat?.coach?.coach_number || "-";
     const coachType = firstSeat?.coach?.coach_type || "-";
     const coachLabel = COACH_LABELS[coachType] || coachType;
+    // Detect General (unreserved) booking — sentinel seat has seat_number 0
+    const isGenBooking = coachType === "GEN" || firstSeat?.seat_number === 0;
 
     // From / To
     const fromX = MARGIN + 10, arrowX = MARGIN + 158, toX = MARGIN + 220;
@@ -365,15 +370,19 @@ export async function generateTicketPDF(booking, res) {
         const seat = p.seat || {};
         const gender = (p.passenger_gender || "").charAt(0).toUpperCase()
             + (p.passenger_gender || "").slice(1);
+        // GEN passengers have no assigned seat — display "Unreserved"
+        const displaySeatNum = isGenBooking ? "Unreserved" : (seat.seat_number ?? "-");
+        const displayBerth = isGenBooking ? "General" : (BERTH_LABELS[seat.berth_type] || seat.berth_type || "-");
+        const displayCoach = isGenBooking ? (seat.coach?.coach_number || "-") : (seat.coach?.coach_number || "-");
         Y = tableRow(doc, Y, TC.map((c, ci) => ({
             ...c,
             val: [
                 i + 1,
                 p.passenger_name,
                 gender,
-                seat.seat_number ?? "-",
-                BERTH_LABELS[seat.berth_type] || seat.berth_type || "-",
-                seat.coach?.coach_number || "-",
+                displaySeatNum,
+                displayBerth,
+                displayCoach,
                 (booking.booking_status || "-").toUpperCase(),
                 `Rs. ${perHead}`,
             ][ci],
@@ -385,10 +394,11 @@ export async function generateTicketPDF(booking, res) {
     Y += 12;
 
     // ── SEAT LAYOUT ──────────────────────────────────────────────────────────
+    // Skipped for General (Unreserved) coach — no assigned seats exist.
     const coachData = firstSeat?.coach || null;
     const bookedSeatIds = new Set(passengers.map(p => p.seat_id));
 
-    if (coachData && coachData.seats && coachData.seats.length > 0) {
+    if (!isGenBooking && coachData && coachData.seats && coachData.seats.length > 0) {
         // Estimate grid height: 8 rows max * (16+2) = 144 + legend 22 + margin 24 = ~190
         Y = ensureSpace(doc, Y, 200);
         Y = sectionHeader(doc, Y, `SEAT LOCATION IN COACH - ${coachNumber}`);
@@ -397,6 +407,23 @@ export async function generateTicketPDF(booking, res) {
         Y = drawSeatLayout(doc, Y, coachData, bookedSeatIds);
         syncCursor(doc, Y);             // sync after grid
         Y += 10;
+        hRule(doc, MARGIN, Y, PW);
+        Y += 12;
+    } else if (isGenBooking) {
+        // For GEN tickets: show a brief unreserved notice instead of a seat grid
+        Y = ensureSpace(doc, Y, 60);
+        fillRect(doc, MARGIN, Y, PW, 46, "#FFFBEB");
+        doc.save()
+            .fillColor("#92400E").font("Helvetica-Bold").fontSize(9)
+            .text("GENERAL / UNRESERVED COMPARTMENT", MARGIN + 10, Y + 8, { width: PW - 20 });
+        doc.fillColor("#78350F").font("Helvetica").fontSize(7.5)
+            .text(
+                "No specific seat is assigned for this ticket. You may board any General (GEN) coach on this train. "
+                + "Seating is on a first-come, first-served basis.",
+                MARGIN + 10, Y + 22, { width: PW - 20 }
+            );
+        doc.restore();
+        Y += 58;
         hRule(doc, MARGIN, Y, PW);
         Y += 12;
     }
@@ -460,7 +487,7 @@ export async function generateTicketPDF(booking, res) {
         from: booking.source_station,
         to: booking.destination_station,
         date: booking.travel_date,
-        seats: passengers.map(p => p.seat?.seat_number).join(","),
+        seats: isGenBooking ? "Unreserved" : passengers.map(p => p.seat?.seat_number).join(","),
         name: booking.contact_name,
     }));
 
@@ -478,7 +505,12 @@ export async function generateTicketPDF(booking, res) {
         .text(`Train  : ${train.train_number} - ${train.train_name}`, MARGIN + 10, Y + 22)
         .text(`Route  : ${booking.source_station} to ${booking.destination_station}`, MARGIN + 10, Y + 34)
         .text(`Date   : ${travelDate}`, MARGIN + 10, Y + 46)
-        .text(`Coach  : ${coachNumber}  |  Class: ${coachLabel}`, MARGIN + 10, Y + 58);
+        .text(
+            isGenBooking
+                ? `Coach  : ${coachNumber}  |  Class: ${coachLabel}  |  Seat: Unreserved`
+                : `Coach  : ${coachNumber}  |  Class: ${coachLabel}`,
+            MARGIN + 10, Y + 58
+        );
     doc.restore();
 
     Y = Math.max(Y + qrSize + 16, Y + 90);

@@ -19,7 +19,7 @@ import { API_BASE, getStoredUser } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, CalendarDays, Clock, MapPin, MapPinOff, Radio, Train as TrainIcon, UtensilsCrossed, Wifi } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BanIcon, CalendarDays, Clock, MapPin, MapPinOff, Radio, Train as TrainIcon, UtensilsCrossed, Wifi } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -34,6 +34,7 @@ interface TrainData {
   duration: string;
   sourceStation: string;
   destinationStation: string;
+  isExpired?: boolean;
 }
 
 interface TrainStop {
@@ -94,7 +95,8 @@ const TrainSelection = () => {
             arrivalTime: result.arrival_time ? result.arrival_time.substring(0, 5) : '--:--',
             duration: result.duration || 'N/A',
             sourceStation: result.source || source,
-            destinationStation: result.destination || destination
+            destinationStation: result.destination || destination,
+            isExpired: result.isExpired ?? false,
           }));
           
           setTrains(mappedTrains);
@@ -196,16 +198,56 @@ const TrainSelection = () => {
 
     const finalSource = boardingStop || source;
     const finalDest = droppingStop || destination;
-    
+
     if (finalSource && finalDest && date && selectedTrain) {
-      navigate('/seats', { 
-        state: { 
-          source: finalSource, 
-          destination: finalDest, 
+      const trainData = trains.find(t => t.id === selectedTrain);
+      // If the train ONLY has GEN coaches (no reserved coaches), go directly to /gen-booking
+      const allCoachTypes: string[] = (trainData as any)?.rawCoaches?.map((c: any) => c.coach_type) ?? [];
+      const hasReserved = allCoachTypes.some(t => !['GEN','ENG','PCL'].includes(t));
+      if (!hasReserved && allCoachTypes.some(t => t === 'GEN')) {
+        navigate('/gen-booking', {
+          state: {
+            trainId: selectedTrain,
+            trainName: trainData?.name,
+            trainNumber: trainData?.number,
+            source: finalSource,
+            destination: finalDest,
+            date: format(date, 'PPP'),
+            isoDate: format(date, 'yyyy-MM-dd'),
+          },
+        });
+        return;
+      }
+      navigate('/seats', {
+        state: {
+          source: finalSource,
+          destination: finalDest,
           date: format(date, 'PPP'),
           isoDate: format(date, 'yyyy-MM-dd'),
-          trainId: selectedTrain 
-        } 
+          trainId: selectedTrain,
+        },
+      });
+    }
+  };
+
+  // Handler for explicit GEN booking from a mixed-coach train
+  const handleProceedToGen = () => {
+    const user = getStoredUser();
+    if (!user) { navigate('/login'); return; }
+    const finalSource = boardingStop || source;
+    const finalDest = droppingStop || destination;
+    const trainData = trains.find(t => t.id === selectedTrain);
+    if (finalSource && finalDest && date && selectedTrain) {
+      navigate('/gen-booking', {
+        state: {
+          trainId: selectedTrain,
+          trainName: trainData?.name,
+          trainNumber: trainData?.number,
+          source: finalSource,
+          destination: finalDest,
+          date: format(date, 'PPP'),
+          isoDate: format(date, 'yyyy-MM-dd'),
+        },
       });
     }
   };
@@ -219,7 +261,7 @@ const TrainSelection = () => {
   const isValidRoute = boardingStop && droppingStop && boardingOrder < droppingOrder;
   
   const isFormComplete = selectedTrain 
-    ? (isValidRoute && !!date) 
+    ? (isValidRoute && !!date && !selectedTrainData?.isExpired) 
     : (source && destination && date && selectedTrain);
 
   // Display all trains returned from the API (already filtered by search if source/dest selected)
@@ -651,13 +693,16 @@ const TrainSelection = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 * index }}
                   whileHover={expandedTrackerId === train.id ? {} : { y: -4 }}
-                  onClick={() => setSelectedTrain(train.id)}
+                  onClick={() => !train.isExpired && setSelectedTrain(train.id)}
                   className={cn(
-                    "group bg-white rounded-3xl p-6 cursor-pointer transition-all duration-300 relative overflow-hidden",
-                    selectedTrain === train.id 
-                      ? "ring-2 ring-blue-500 shadow-2xl shadow-blue-900/10" 
-                      : "border border-slate-100 shadow-lg shadow-slate-200/50 hover:shadow-xl hover:shadow-slate-300/40 hover:border-blue-200"
+                    "group bg-white rounded-3xl p-6 transition-all duration-300 relative overflow-hidden",
+                    train.isExpired
+                      ? "border border-slate-200 shadow-sm opacity-60 cursor-not-allowed"
+                      : selectedTrain === train.id 
+                        ? "ring-2 ring-blue-500 shadow-2xl shadow-blue-900/10 cursor-pointer" 
+                        : "border border-slate-100 shadow-lg shadow-slate-200/50 hover:shadow-xl hover:shadow-slate-300/40 hover:border-blue-200 cursor-pointer"
                   )}
+                  style={train.isExpired ? { filter: 'grayscale(50%)' } : undefined}
                 >
                   {/* Selection Indicator */}
                   {selectedTrain === train.id && (
@@ -687,6 +732,11 @@ const TrainSelection = () => {
                                     <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-500">#{train.number}</span>
                                     <span>•</span>
                                     <span>Daily Service</span>
+                                    {train.isExpired && (
+                                      <span className="flex items-center gap-1 bg-red-100 text-red-600 px-2 py-0.5 rounded-full text-xs font-bold">
+                                        <BanIcon className="w-3 h-3" /> Departed
+                                      </span>
+                                    )}
                                 </p>
                               </div>
                               <div className="text-right hidden sm:block">

@@ -9,6 +9,7 @@ import {
     deleteCoach,
     getAllStations,
     getAllTrains,
+    getGenAvailability,
     getRunById,
     getTrainAvailability,
     getTrainById,
@@ -38,6 +39,7 @@ router.get("/runs/:id", getRunById);
 router.get("/:id/stops", getTrainStops);
 router.get("/:id", getTrainById);
 router.get("/:id/availability", getTrainAvailability);
+router.get("/:id/gen-availability", getGenAvailability);
 router.post("/", createTrain);
 router.post("/:id/runs", createTrainRun);
 router.post("/:id/coaches", createCoach);

@@ -138,7 +138,7 @@ export default function AdminCoaches() {
         const capacities: Record<string, number> = {
             'ENG': 0,
             'PCL': 0,
-            'GEN': 0,
+            'GEN': 100,
             'SL': 72,
             '1A': 18,
             '2A': 54,
@@ -311,7 +311,7 @@ export default function AdminCoaches() {
                                                 <SelectContent>
                                                     <SelectItem value="ENG">🚂 Engine (ENG) — not bookable</SelectItem>
                                                     <SelectItem value="PCL">📦 Parcel Van (PCL) — not bookable</SelectItem>
-                                                    <SelectItem value="GEN">🚃 General / Unreserved (GEN) — not bookable</SelectItem>
+                                                    <SelectItem value="GEN">🚃 General / Unreserved (GEN)</SelectItem>
                                                     <SelectItem value="SL">Sleeper (SL) - 72 seats</SelectItem>
                                                     <SelectItem value="1A">First AC (1A) - 18 seats</SelectItem>
                                                     <SelectItem value="2A">Second AC (2A) - 54 seats</SelectItem>

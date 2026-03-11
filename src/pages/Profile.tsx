@@ -313,9 +313,15 @@ const Profile = () => {
                               <span className="text-muted-foreground font-mono text-xs">
                                 {p.seat ? (
                                   <>
-                                    COACH <span className="font-bold text-foreground">{p.seat.coach?.coach_number}</span> •{" "}
-                                    SEAT <span className="font-bold text-foreground">{p.seat.seat_number}</span> •{" "}
-                                    <span className="ml-1">{p.seat.berth_type}</span>
+                                    COACH <span className="font-bold text-foreground">{p.seat.coach?.coach_number}</span>{" "}
+                                    {p.seat.coach?.coach_type === 'GEN' || p.seat.seat_number === 0 ? (
+                                      <span className="ml-1 font-bold text-amber-600">🚃 Unreserved (General)</span>
+                                    ) : (
+                                      <>
+                                        • SEAT <span className="font-bold text-foreground">{p.seat.seat_number}</span> •{" "}
+                                        <span className="ml-1">{p.seat.berth_type}</span>
+                                      </>
+                                    )}
                                   </>
                                 ) : (
                                   "Unassigned"

@@ -341,6 +341,37 @@ export const searchTrains = async (req, res) => {
         coachSummary[type].total_seats += coach.capacity || (coach.seats ? coach.seats.length : 0);
       });
 
+      // ── Departure Validation ──────────────────────────────────────────────
+      // Compute isExpired: only relevant when the search date is TODAY (in IST).
+      // Departure times stored in DB are in IST (Indian Standard Time, UTC+5:30).
+      // A train is "expired" if the current IST time > departureTime + GRACE_PERIOD_MINS.
+      const GRACE_PERIOD_MINS = 5;
+      const IST_OFFSET_MINS = 5 * 60 + 30; // 330 minutes ahead of UTC
+
+      const nowUtc = new Date();
+      // Derive the current IST date string (YYYY-MM-DD) regardless of server timezone
+      const nowIstMs = nowUtc.getTime() + IST_OFFSET_MINS * 60 * 1000;
+      const nowIst = new Date(nowIstMs);
+      const todayIstStr = nowIst.toISOString().slice(0, 10); // "YYYY-MM-DD" in IST
+
+      // The search date comes in as "YYYY-MM-DD" (chosen by user in IST)
+      const isToday = date === todayIstStr;
+
+      const departureTimeStr = match.sourceStop.departure_time; // "HH:MM:SS" or "HH:MM"
+      let isExpired = false;
+
+      if (isToday && departureTimeStr) {
+        const [depH, depM] = departureTimeStr.split(":").map(Number);
+        const depTotalMins = depH * 60 + depM;
+        // Current time in IST as minutes-since-midnight
+        const nowIstHours = nowIst.getUTCHours();   // getUTCHours on the shifted Date = IST hours
+        const nowIstMins  = nowIst.getUTCMinutes();
+        const nowTotalMins = nowIstHours * 60 + nowIstMins;
+        // Expired if current IST time has passed the departure + grace window
+        isExpired = nowTotalMins > depTotalMins + GRACE_PERIOD_MINS;
+      }
+      // ──────────────────────────────────────────────────────────────────────
+
       return {
         run_id: run.run_id,
         train_id: run.train_id,
@@ -355,6 +386,7 @@ export const searchTrains = async (req, res) => {
         distance_km,
         coaches: run.train.coaches,
         coach_summary: Object.values(coachSummary),
+        isExpired,
       };
     });
 
@@ -442,10 +474,14 @@ export const createCoach = async (req, res) => {
     const nextSequence =
       existingCoaches.length > 0 ? existingCoaches[0].sequence_order + 1 : 1;
 
-    // Non-passenger coaches (engine, parcel van, general unreserved) have no seats
-    const NON_PASSENGER = ['ENG', 'PCL', 'GEN'];
-    const isEngine = NON_PASSENGER.includes(String(coach_type).toUpperCase());
-    const actualCapacity = isEngine ? 0 : (capacity || total_seats || 72);
+    // Non-passenger coaches (engine, parcel van) have no seats.
+    // GEN coaches are bookable but use a single sentinel seat rather than
+    // individual physical seat records — see below.
+    const NO_SEAT_COACHES = ['ENG', 'PCL'];
+    const isNonPassenger = NO_SEAT_COACHES.includes(String(coach_type).toUpperCase());
+    const isGen = String(coach_type).toUpperCase() === 'GEN';
+    const GEN_DEFAULT_CAPACITY = 100;
+    const actualCapacity = isNonPassenger ? 0 : isGen ? (capacity || total_seats || GEN_DEFAULT_CAPACITY) : (capacity || total_seats || 72);
 
     const coach = await Coach.create({
       coach_number,
@@ -455,9 +491,26 @@ export const createCoach = async (req, res) => {
       train_id: id,
     });
 
-    // Engine coaches have no seats — return immediately
-    if (isEngine) {
+    // ENG/PCL coaches have no seats — return immediately
+    if (isNonPassenger) {
       return res.status(201).json(coach);
+    }
+
+    // GEN coaches: create ONE sentinel seat (seat_number=0) that acts as the
+    // FK anchor for all passenger records. No physical berth rows are generated.
+    if (isGen) {
+      await Seat.create({
+        seat_number: 0,
+        berth_type: 'LB',
+        row_number: 0,
+        is_side_berth: false,
+        column_index: 0,
+        coach_id: coach.coach_id,
+      });
+      const coachWithSentinel = await Coach.findByPk(coach.coach_id, {
+        include: [{ model: Seat, as: 'seats' }],
+      });
+      return res.status(201).json(coachWithSentinel);
     }
 
     const seatsToCreate = [];
@@ -751,6 +804,77 @@ export const getTrainAvailability = async (req, res) => {
 
     res.json({ bookedSeatIds: Array.from(bookedSeatIds), lockedSeatIds: lockedIds });
 
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── GEN Coach availability (occupancy count) ────────────────────────────────
+// GET /api/trains/:id/gen-availability?date=YYYY-MM-DD&passengerCount=N
+// Returns how many GEN seats are total vs already booked for this date,
+// and performs a pre-flight check against the requested passenger count.
+export const getGenAvailability = async (req, res) => {
+  try {
+    const { id } = req.params;             // train_id
+    const { date, passengerCount } = req.query;
+
+    if (!date) {
+      return res.status(400).json({ error: 'date query parameter is required' });
+    }
+
+    // 1. Find all GEN coaches for this train and their sentinel seats
+    const genCoaches = await Coach.findAll({
+      where: { train_id: id, coach_type: 'GEN' },
+      include: [{ model: Seat, as: 'seats' }],
+    });
+
+    if (genCoaches.length === 0) {
+      return res.status(404).json({ error: 'No GEN coaches found for this train.' });
+    }
+
+    const totalCapacity = genCoaches.reduce((sum, c) => sum + (c.capacity || 0), 0);
+
+    // Collect all sentinel seat IDs
+    const sentinelSeatIds = genCoaches
+      .flatMap(c => c.seats || [])
+      .map(s => s.seat_id);
+
+    // 2. Count passengers already booked/pending in GEN on this date
+    let bookedCount = 0;
+    if (sentinelSeatIds.length > 0) {
+
+      const bookings = await Booking.findAll({
+        where: {
+          train_id: id,
+          travel_date: date,
+          booking_status: { [Op.in]: ['confirmed', 'pending'] },
+        },
+        include: [{
+          model: Passenger,
+          as: 'passengers',
+          where: { seat_id: { [Op.in]: sentinelSeatIds } },
+          required: true,
+        }],
+      });
+      bookedCount = bookings.reduce((sum, b) => sum + (b.passengers?.length || 0), 0);
+    }
+
+    const remaining = Math.max(0, totalCapacity - bookedCount);
+    const requested = parseInt(passengerCount) || 1;
+    const canBook = remaining >= requested;
+
+    return res.json({
+      totalCapacity,
+      bookedCount,
+      remaining,
+      canBook,
+      genCoaches: genCoaches.map(c => ({
+        coach_id: c.coach_id,
+        coach_number: c.coach_number,
+        capacity: c.capacity,
+        sentinelSeatId: c.seats?.[0]?.seat_id ?? null,
+      })),
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

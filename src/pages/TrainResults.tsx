@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { API_BASE } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { ArrowLeft, ArrowRight, Clock, Filter, MapPin, Radio, Train as TrainIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BanIcon, Clock, Filter, MapPin, Radio, Train as TrainIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -39,6 +39,7 @@ interface TrainData {
         seats: any[];
     }[];
     coach_summary: CoachSummary[];
+    isExpired?: boolean;
 }
 
 // Color map for coach types
@@ -109,7 +110,25 @@ const TrainResults = () => {
       return 0;
   });
 
-  const handleBook = (train: TrainData) => {
+  const handleBook = (train: TrainData, forceGen = false) => {
+     // If the train has GEN coaches AND caller requests GEN, go to /gen-booking
+     const genCoach = forceGen ? train.coaches?.find((c: any) => c.coach_type === 'GEN') : null;
+     if (forceGen && genCoach) {
+       navigate('/gen-booking', {
+         state: {
+           trainId: train.train_id.toString(),
+           trainName: train.train_name,
+           trainNumber: train.train_number,
+           source,
+           destination,
+           date: dateStr ? format(new Date(dateStr), 'PPP') : '',
+           isoDate: dateStr,
+           distance: train.distance_km,
+         },
+       });
+       return;
+     }
+     // Otherwise normal reserved-seat flow
      navigate('/seats', { 
         state: { 
           source, 
@@ -208,11 +227,20 @@ const TrainResults = () => {
                     const totalSeats = summary.reduce((s, c) => s + c.total_seats, 0);
                     const trackId = String(train.run_id ?? train.train_id);
                     const isTracking = expandedTrackerId === trackId;
+                    // Detect if this train has any GEN coaches
+                    const hasGenCoach = (train.coaches || []).some((c: any) => c.coach_type === 'GEN');
+                    const reservedOnly = !hasGenCoach;
 
                     return (
                         <div 
                             key={train.train_id}
-                            className="group bg-white rounded-3xl p-6 border border-slate-100 shadow-lg shadow-slate-200/50 hover:shadow-xl hover:shadow-slate-300/40 hover:border-blue-200 transition-all duration-300"
+                            className={cn(
+                                "group bg-white rounded-3xl p-6 border transition-all duration-300",
+                                train.isExpired
+                                    ? "border-slate-200 shadow-sm opacity-60 grayscale-[50%] pointer-events-auto"
+                                    : "border-slate-100 shadow-lg shadow-slate-200/50 hover:shadow-xl hover:shadow-slate-300/40 hover:border-blue-200"
+                            )}
+                            style={train.isExpired ? { filter: 'grayscale(50%)' } : undefined}
                         >
                             <div className="flex flex-col md:flex-row md:items-center gap-6 md:gap-8">
                                  {/* Train Info */}
@@ -257,17 +285,47 @@ const TrainResults = () => {
 
                                  {/* Action column */}
                                  <div className="flex flex-col items-center gap-3 md:w-1/5">
-                                    <p className="text-xs text-green-600 font-semibold">
-                                        {totalSeats} Seats Available
-                                    </p>
+                                    {train.isExpired ? (
+                                        <p className="text-xs text-red-500 font-semibold flex items-center gap-1">
+                                            <BanIcon className="w-3 h-3" /> Boarding Closed
+                                        </p>
+                                    ) : (
+                                        <p className="text-xs text-green-600 font-semibold">
+                                            {totalSeats} Seats Available
+                                        </p>
+                                    )}
+                                    {/* Show both buttons if GEN + Reserved coaches coexist */}
+                                    {!train.isExpired && hasGenCoach && (
+                                        <Button
+                                            onClick={() => handleBook(train, true)}
+                                            className="w-full font-bold rounded-xl bg-amber-500 hover:bg-amber-600 shadow-lg shadow-amber-500/20 text-white"
+                                        >
+                                            🚃 Book General
+                                        </Button>
+                                    )}
                                     <Button 
-                                        onClick={() => handleBook(train)}
-                                        className="w-full font-bold rounded-xl bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20"
+                                        onClick={() => !train.isExpired && handleBook(train, false)}
+                                        disabled={!!train.isExpired || !reservedOnly && !hasGenCoach}
+                                        className={cn(
+                                            "w-full font-bold rounded-xl shadow-lg transition-all",
+                                            train.isExpired
+                                                ? "bg-slate-300 text-slate-500 cursor-not-allowed shadow-none"
+                                                : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
+                                        )}
                                     >
-                                        View Seats
-                                        <ArrowRight className="w-4 h-4 ml-2" />
+                                        {train.isExpired ? (
+                                            <>
+                                                <BanIcon className="w-4 h-4 mr-2" />
+                                                Departed
+                                            </>
+                                        ) : (
+                                            <>
+                                                View Seats
+                                                <ArrowRight className="w-4 h-4 ml-2" />
+                                            </>
+                                        )}
                                     </Button>
-                                    {/* Track Live — toggles inline horizontal tracker */}
+                                    {/* Track Live — always active, even for expired trains */}
                                     <button
                                         onClick={() => setExpandedTrackerId(prev => prev === trackId ? null : trackId)}
                                         className={cn(
