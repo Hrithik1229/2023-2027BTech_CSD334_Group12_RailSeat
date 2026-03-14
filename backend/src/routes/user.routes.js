@@ -1,10 +1,10 @@
 import express from "express";
 import {
-    getAllUsers,
-    getUserById,
-    updateUser,
     deleteUser,
-    getBookingsByUserId
+    getAllUsers,
+    getBookingsByUserId,
+    getUserById,
+    updateUser
 } from "../controllers/user.controller.js";
 
 const router = express.Router();

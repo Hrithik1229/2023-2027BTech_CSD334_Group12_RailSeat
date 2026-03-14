@@ -9,7 +9,7 @@ const SeatTypePricing = sequelize.define("SeatTypePricing", {
     },
 
     coach_type: {
-        type: DataTypes.ENUM("1A", "2A", "3A", "SL", "CC"),
+        type: DataTypes.ENUM("1A", "2A", "3A", "SL", "CC", "GEN", "UR", "AC"),
     },
 
     seat_type: {

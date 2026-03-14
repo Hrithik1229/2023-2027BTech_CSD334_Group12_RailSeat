@@ -130,16 +130,7 @@ export const calculateFare = (distance, fareRule, seatMultiplier = 1.0) => {
  *   }
  * }>}
  */
-// Helper: Get FareRule or Default
 const getFareRuleOrDefault = async (trainType, coachType) => {
-    // Try DB
-    const rule = await FareRule.findOne({
-        where: { train_type: trainType, coach_type: coachType },
-    });
-    if (rule) return rule.toJSON();
-
-    // Fallback defaults
-    console.warn(`Missing FareRule for ${trainType} ${coachType}, using fallback.`);
     const defaults = {
         '1A': { base_fare: 1200, per_km_rate: 3.5, min_distance: 300, reservation_charge: 60, gst_percent: 5, superfast_charge: 75 },
         '2A': { base_fare: 800, per_km_rate: 2.5, min_distance: 300, reservation_charge: 50, gst_percent: 5, superfast_charge: 45 },
@@ -149,17 +140,32 @@ const getFareRuleOrDefault = async (trainType, coachType) => {
         'SL': { base_fare: 150, per_km_rate: 0.6, min_distance: 200, reservation_charge: 20, gst_percent: 0, superfast_charge: 30 },
         '2S': { base_fare: 100, per_km_rate: 0.45, min_distance: 100, reservation_charge: 15, gst_percent: 0, superfast_charge: 15 },
         'GEN': { base_fare: 50, per_km_rate: 0.30, min_distance: 50, reservation_charge: 0, gst_percent: 0, superfast_charge: 10 },
-        'AC': { base_fare: 1000, per_km_rate: 3.0, min_distance: 300, reservation_charge: 50, gst_percent: 5, superfast_charge: 55 },
+        'UR':  { base_fare: 50, per_km_rate: 0.30, min_distance: 50, reservation_charge: 0, gst_percent: 0, superfast_charge: 10 }, // alias for GEN
+        'AC':  { base_fare: 1000, per_km_rate: 3.0, min_distance: 300, reservation_charge: 50, gst_percent: 5, superfast_charge: 55 },
     };
 
-    const def = defaults[coachType] || defaults['SL']; // Default to Sleeper if unknown
+    // GEN, UR (alias) and AC are not stored in the fare_rules DB table.
+    // Return hardcoded values directly to avoid a DB ENUM validation error.
+    const NON_DB_TYPES = ['GEN', 'UR', 'AC'];
+    const lookupType = coachType === 'UR' ? 'GEN' : coachType; // normalise UR → GEN
+    if (NON_DB_TYPES.includes(coachType)) {
+        const def = defaults[coachType] || defaults['SL'];
+        return { train_type: trainType, coach_type: coachType, ...def };
+    }
 
-    // Adjust for train type if needed (e.g. Local has cheaper rates, but for now express/experimental)
+    // Try DB for all other types
+    const rule = await FareRule.findOne({
+        where: { train_type: trainType, coach_type: coachType },
+    });
+    if (rule) return rule.toJSON();
+
+    // Fallback for unknown types not in DB
+    console.warn(`Missing FareRule for ${trainType} ${coachType}, using fallback.`);
+    const def = defaults[coachType] || defaults['SL'];
     return {
         train_type: trainType,
         coach_type: coachType,
         ...def,
-        // Ensure values are numbers
         base_fare: Number(def.base_fare),
         per_km_rate: Number(def.per_km_rate),
         min_distance: Number(def.min_distance),
@@ -168,6 +174,7 @@ const getFareRuleOrDefault = async (trainType, coachType) => {
         gst_percent: Number(def.gst_percent),
     };
 };
+
 
 export const getFare = async ({ distance, trainType, coachType, berthType }) => {
     if (!distance || distance <= 0) {

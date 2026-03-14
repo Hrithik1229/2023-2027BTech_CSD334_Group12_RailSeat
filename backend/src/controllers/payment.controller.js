@@ -285,6 +285,14 @@ export const createGenOrder = async (req, res) => {
     try {
         const { totalAmount, trainId, travelDate, passengerCount } = req.body;
 
+        // ── Explicit field validation ────────────────────────────────
+        if (!trainId) {
+            return res.status(400).json({ error: "trainId is required." });
+        }
+        if (!travelDate) {
+            return res.status(400).json({ error: "travelDate is required." });
+        }
+
         const travelDateStr =
             typeof travelDate === "string"
                 ? travelDate
@@ -340,7 +348,12 @@ export const createGenOrder = async (req, res) => {
             amount: amountInPaise,
             currency: "INR",
             receipt: `gen_${Date.now()}`,
-            notes: { trainId: String(trainId), travelDate: travelDateStr, coachType: "GEN" },
+            notes: {
+                trainId: String(trainId),
+                travelDate: travelDateStr,
+                coachType: "GEN",
+                validityHours: "3",
+            },
         });
 
         return res.status(200).json({
@@ -374,9 +387,9 @@ export const verifyGenPayment = async (req, res) => {
             sourceStation,
             destinationStation,
             travelDate,
-            passengers,       // [{ name, gender }]
+            passengers,
             totalAmount,
-            sentinelSeatId,   // from /gen-availability response
+            sentinelSeatId,
         } = req.body;
 
         // 1. Verify Razorpay signature
@@ -428,6 +441,9 @@ export const verifyGenPayment = async (req, res) => {
         }
 
         // 4. Create booking record
+        const validityStart = new Date();
+        const validityEnd   = new Date(validityStart.getTime() + 3 * 60 * 60 * 1000); // +3 hours
+
         const booking = await Booking.create({
             booking_number: bookingNumber,
             contact_name: contactName,
@@ -440,6 +456,10 @@ export const verifyGenPayment = async (req, res) => {
             total_amount: Number(totalAmount) || 0,
             booking_status: "confirmed",
             payment_status: "paid",
+            gen_ticket: true,
+            gen_validity_start: validityStart,
+            gen_validity_end: validityEnd,
+            is_downloadable: false, // GEN tickets are digital-only
         });
 
         // 5. Create passenger records — all reference the GEN sentinel seat

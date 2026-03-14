@@ -24,17 +24,20 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 interface TrainData {
-  id: string;
-  runId: string;        // always the run_id for the tracker
+  id: string;          // run_id (used as the React list key + tracker ID)
+  runId: string;       // always the run_id for the tracker
+  trainDbId: string;   // ← the actual train_id from the DB (used for bookings/coaches)
   number: string;
   name: string;
   coaches: string[];
+  coachTypes: string[];
   departureTime: string;
   arrivalTime: string;
   duration: string;
   sourceStation: string;
   destinationStation: string;
   isExpired?: boolean;
+  distance?: number;
 }
 
 interface TrainStop {
@@ -88,15 +91,18 @@ const TrainSelection = () => {
           const mappedTrains: TrainData[] = data.map((result: any) => ({
             id: result.run_id.toString(),
             runId: result.run_id.toString(),
+            trainDbId: result.train_id.toString(),   // ← real train_id
             number: result.train_number,
             name: result.train_name,
             coaches: result.coaches ? result.coaches.map((c: any) => c.coach_number) : [],
+            coachTypes: result.coaches ? result.coaches.map((c: any) => c.coach_type) : [],
             departureTime: result.departure_time ? result.departure_time.substring(0, 5) : '--:--',
             arrivalTime: result.arrival_time ? result.arrival_time.substring(0, 5) : '--:--',
             duration: result.duration || 'N/A',
             sourceStation: result.source || source,
             destinationStation: result.destination || destination,
             isExpired: result.isExpired ?? false,
+            distance: result.distance_km ?? 0,
           }));
           
           setTrains(mappedTrains);
@@ -113,14 +119,17 @@ const TrainSelection = () => {
           const mappedTrains: TrainData[] = data.map((t: any) => ({
             id: t.train_id.toString(),
             runId: t.runs?.[0]?.run_id?.toString() || t.train_id.toString(),
+            trainDbId: t.train_id.toString(),       // ← real train_id (same as id here)
             number: t.train_number,
             name: t.train_name,
             coaches: t.coaches ? t.coaches.map((c: any) => c.coach_number) : [],
+            coachTypes: t.coaches ? t.coaches.map((c: any) => c.coach_type) : [],
             departureTime: t.departure_time ? t.departure_time.substring(0, 5) : '--:--',
             arrivalTime: t.arrival_time ? t.arrival_time.substring(0, 5) : '--:--',
             duration: t.duration || 'N/A',
             sourceStation: t.source_station,
-            destinationStation: t.destination_station
+            destinationStation: t.destination_station,
+            distance: 0,
           }));
 
           setTrains(mappedTrains);
@@ -201,19 +210,21 @@ const TrainSelection = () => {
 
     if (finalSource && finalDest && date && selectedTrain) {
       const trainData = trains.find(t => t.id === selectedTrain);
+      const realTrainId = trainData?.trainDbId ?? selectedTrain; // ← always the DB train_id
       // If the train ONLY has GEN coaches (no reserved coaches), go directly to /gen-booking
-      const allCoachTypes: string[] = (trainData as any)?.rawCoaches?.map((c: any) => c.coach_type) ?? [];
+      const allCoachTypes: string[] = trainData?.coachTypes ?? [];
       const hasReserved = allCoachTypes.some(t => !['GEN','ENG','PCL'].includes(t));
       if (!hasReserved && allCoachTypes.some(t => t === 'GEN')) {
         navigate('/gen-booking', {
           state: {
-            trainId: selectedTrain,
+            trainId: realTrainId,
             trainName: trainData?.name,
             trainNumber: trainData?.number,
             source: finalSource,
             destination: finalDest,
             date: format(date, 'PPP'),
             isoDate: format(date, 'yyyy-MM-dd'),
+            distance: trainData?.distance ?? 0,
           },
         });
         return;
@@ -224,7 +235,7 @@ const TrainSelection = () => {
           destination: finalDest,
           date: format(date, 'PPP'),
           isoDate: format(date, 'yyyy-MM-dd'),
-          trainId: selectedTrain,
+          trainId: realTrainId,
         },
       });
     }
@@ -237,22 +248,27 @@ const TrainSelection = () => {
     const finalSource = boardingStop || source;
     const finalDest = droppingStop || destination;
     const trainData = trains.find(t => t.id === selectedTrain);
+    const realTrainId = trainData?.trainDbId ?? selectedTrain; // ← always the DB train_id
     if (finalSource && finalDest && date && selectedTrain) {
       navigate('/gen-booking', {
         state: {
-          trainId: selectedTrain,
+          trainId: realTrainId,
           trainName: trainData?.name,
           trainNumber: trainData?.number,
           source: finalSource,
           destination: finalDest,
           date: format(date, 'PPP'),
           isoDate: format(date, 'yyyy-MM-dd'),
+          distance: trainData?.distance ?? 0,
         },
       });
     }
   };
 
   const selectedTrainData = trains.find(t => t.id === selectedTrain);
+
+  // Determine if the selected train has a GEN compartment
+  const selectedHasGen = !!selectedTrainData?.coachTypes?.includes('GEN');
   
   // Validation Logic
   const getStopOrder = (stationName: string) => trainStops.find(s => s.station.station_name === stationName)?.stop_order || -1;
@@ -638,7 +654,7 @@ const TrainSelection = () => {
 
               {/* Search/Proceed Button */}
               <motion.div 
-                className="mt-8"
+                className="mt-8 space-y-3"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
@@ -661,6 +677,20 @@ const TrainSelection = () => {
                       <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
                   )}
                 </Button>
+
+                {/* Book General — only shown when the selected train has a GEN compartment */}
+                {selectedHasGen && isFormComplete && (
+                  <Button
+                    onClick={handleProceedToGen}
+                    size="lg"
+                    variant="outline"
+                    className="w-full h-14 text-base font-bold rounded-2xl border-2 border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100 hover:border-amber-500 transition-all duration-200 shadow-md shadow-amber-500/10"
+                  >
+                    <span className="flex items-center justify-center gap-2">
+                      🚃 Book General
+                    </span>
+                  </Button>
+                )}
               </motion.div>
             </div>
           </motion.div>

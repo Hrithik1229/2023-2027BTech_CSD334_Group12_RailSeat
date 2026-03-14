@@ -14,7 +14,7 @@ const FareRule = sequelize.define("FareRule", {
   },
 
   coach_type: {
-    type: DataTypes.ENUM("1A", "2A", "3A", "SL", "CC", "2S"),
+    type: DataTypes.ENUM("1A", "2A", "3A", "SL", "CC", "2S", "AC", "GEN", "UR"),
     allowNull: false,
   },
 
@@ -34,6 +34,11 @@ const FareRule = sequelize.define("FareRule", {
   },
 
   reservation_charge: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0,
+  },
+
+  superfast_charge: {
     type: DataTypes.DECIMAL(10, 2),
     defaultValue: 0,
   },

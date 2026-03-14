@@ -25,6 +25,10 @@ Coach.belongsTo(Train, { foreignKey: "train_id", as: "train" });
 Coach.hasMany(Seat, { foreignKey: "coach_id", as: "seats" });
 Seat.belongsTo(Coach, { foreignKey: "coach_id", as: "coach" });
 
+// Define Train ↔ Booking association
+Train.hasMany(Booking, { foreignKey: "train_id", as: "bookings" });
+Booking.belongsTo(Train, { foreignKey: "train_id", as: "train" });
+
 // Export all models
 export {
     Booking, Coach, FareRule, Passenger, Seat, SeatTypePricing,

@@ -43,6 +43,15 @@ export const downloadTicket = async (req, res) => {
             });
         }
 
+        // ── GEN tickets are digital-only: no PDF allowed ─────────────────────
+        const bookingJson = booking.toJSON();
+        if (bookingJson.gen_ticket) {
+            return res.status(403).json({
+                error: "General (Unreserved) tickets are digital-only and cannot be downloaded as PDF. Please view your ticket in the app.",
+                gen_ticket: true,
+            });
+        }
+
         const bookingData = booking.toJSON();
 
         // ── Fetch departure time at source and arrival time at destination ──────

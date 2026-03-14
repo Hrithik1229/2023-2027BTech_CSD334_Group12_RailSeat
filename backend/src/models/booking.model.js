@@ -60,14 +60,37 @@ const Booking = sequelize.define("Booking", {
     payment_status: {
         type: DataTypes.ENUM('pending', 'paid', 'failed', 'refunded'),
         defaultValue: 'pending'
+    },
+    // ── GEN (Unreserved) Ticket Fields ──────────────────────────────────────
+    // Only populated for bookings where coach_type = 'GEN'.
+    // gen_validity_start = payment success timestamp
+    // gen_validity_end   = gen_validity_start + 3 hours
+    gen_ticket: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        allowNull: false
+    },
+    gen_validity_start: {
+        type: DataTypes.DATE,
+        allowNull: true
+    },
+    gen_validity_end: {
+        type: DataTypes.DATE,
+        allowNull: true
+    },
+    // GEN tickets are digital-only; PDF download/print is disabled.
+    is_downloadable: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+        allowNull: false
     }
 }, {
     tableName: "bookings",
     timestamps: true
 });
 
-// Define relationships (User ↔ Booking set up in index.js to avoid circular import)
-Train.hasMany(Booking, { foreignKey: "train_id", as: "bookings" });
-Booking.belongsTo(Train, { foreignKey: "train_id", as: "train" });
+// NOTE: Train ↔ Booking and User ↔ Booking associations are
+// defined centrally in models/index.js to avoid circular imports
+// and duplicate association registrations.
 
 export default Booking;

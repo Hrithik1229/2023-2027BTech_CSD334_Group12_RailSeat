@@ -1,3 +1,4 @@
+import GenTicketView from "@/components/GenTicketView";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,10 +6,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { API_BASE, clearStoredUser, getMyBookings, getStoredUser, setStoredUser, updateUserProfile, type Booking } from "@/lib/api";
-import { format } from "date-fns";
+import { format, isAfter } from "date-fns";
 import { Calendar, LogOut, Ticket, Train } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+
+/** Returns true if every seated passenger is a GEN / unreserved booking */
+const isGenBooking = (b: Booking) =>
+  b.gen_ticket || (b.passengers?.length > 0 &&
+  b.passengers.every(
+    (p: any) =>
+      p.seat?.coach?.coach_type === "GEN" || p.seat?.seat_number === 0 || !p.seat
+  ));
 
 const Profile = () => {
   const user = getStoredUser();
@@ -231,7 +240,11 @@ const Profile = () => {
               </p>
             ) : (
               <ul className="space-y-4">
-                {bookings.map((b) => (
+                {bookings.map((b) => isGenBooking(b) ? (
+                  <li key={b.booking_id}>
+                    <GenTicketView booking={b} />
+                  </li>
+                ) : (
                   <li
                     key={b.booking_id}
                     className="flex flex-col gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 transition-colors"
@@ -253,23 +266,27 @@ const Profile = () => {
                         </p>
                         <p className="text-sm">
                           Amount: ₹{Number(b.total_amount).toFixed(2)} •{" "}
-                          <span
-                            className={`capitalize font-semibold ${
-                              b.booking_status === "confirmed"
-                                ? "text-green-600"
-                                : b.booking_status === "cancelled"
-                                ? "text-red-500"
-                                : "text-amber-500"
-                            }`}
-                          >
-                            {b.booking_status}
-                          </span>
-                        </p>
-                      </div>
+                            <span
+                              className={`capitalize font-semibold ${
+                                b.booking_status === "confirmed"
+                                  ? "text-green-600"
+                                  : b.booking_status === "cancelled"
+                                  ? "text-red-500"
+                                  : (isAfter(new Date(), new Date(b.travel_date + "T23:59:59")) 
+                                      ? "text-muted-foreground" 
+                                      : "text-amber-500")
+                              }`}
+                            >
+                              {b.booking_status === "confirmed" && isAfter(new Date(), new Date(b.travel_date + "T23:59:59")) 
+                                ? "Completed" 
+                                : b.booking_status}
+                            </span>
+                          </p>
+                        </div>
 
-                      {/* Download button — only for confirmed + paid bookings */}
-                      {(b.payment_status === "paid" || b.booking_status === "confirmed") && (
-                        <div className="dl-btn-container">
+                        {/* Download button — only for confirmed + paid bookings (and not GEN digital-only) */}
+                        {(b.payment_status === "paid" || b.booking_status === "confirmed") && b.is_downloadable !== false && (
+                          <div className="dl-btn-container">
                           <label
                             className={`dl-btn-label${
                               downloadingId === b.booking_id ? " dl-btn-checked" : ""
@@ -310,23 +327,21 @@ const Profile = () => {
                           {b.passengers.map((p: any, idx: number) => (
                             <div key={idx} className="flex flex-wrap justify-between items-center text-sm bg-background/50 p-2 rounded border border-border/50">
                               <span className="font-medium">{p.passenger_name} <span className="text-muted-foreground text-xs">({p.passenger_gender})</span></span>
-                              <span className="text-muted-foreground font-mono text-xs">
-                                {p.seat ? (
-                                  <>
-                                    COACH <span className="font-bold text-foreground">{p.seat.coach?.coach_number}</span>{" "}
-                                    {p.seat.coach?.coach_type === 'GEN' || p.seat.seat_number === 0 ? (
-                                      <span className="ml-1 font-bold text-amber-600">🚃 Unreserved (General)</span>
-                                    ) : (
-                                      <>
-                                        • SEAT <span className="font-bold text-foreground">{p.seat.seat_number}</span> •{" "}
-                                        <span className="ml-1">{p.seat.berth_type}</span>
-                                      </>
-                                    )}
-                                  </>
-                                ) : (
-                                  "Unassigned"
-                                )}
-                              </span>
+                                <span className="text-muted-foreground font-mono text-xs">
+                                  {p.seat ? (
+                                    <>
+                                      COACH{" "}
+                                      <span className="font-bold text-foreground">{p.seat.coach?.coach_number}</span>
+                                      {" "}•{" "}
+                                      SEAT{" "}
+                                      <span className="font-bold text-foreground">{p.seat.seat_number}</span>
+                                      {" "}•{" "}
+                                      <span className="ml-1">{p.seat.berth_type}</span>
+                                    </>
+                                  ) : (
+                                    "Unassigned"
+                                  )}
+                                </span>
                             </div>
                           ))}
                         </div>

@@ -8,7 +8,7 @@ import { Coins, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-type CoachType = "1A" | "2A" | "3A" | "SL" | "CC" | "2S";
+type CoachType = "1A" | "2A" | "3A" | "SL" | "CC" | "2S" | "UR";
 
 interface FareRule {
     id: number;
@@ -185,12 +185,13 @@ export default function AdminFares() {
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="1A">1A</SelectItem>
-                                    <SelectItem value="2A">2A</SelectItem>
-                                    <SelectItem value="3A">3A</SelectItem>
-                                    <SelectItem value="SL">SL</SelectItem>
-                                    <SelectItem value="CC">CC</SelectItem>
-                                    <SelectItem value="2S">2S</SelectItem>
+                                    <SelectItem value="1A">1A — First AC</SelectItem>
+                                    <SelectItem value="2A">2A — Second AC</SelectItem>
+                                    <SelectItem value="3A">3A — Third AC</SelectItem>
+                                    <SelectItem value="SL">SL — Sleeper</SelectItem>
+                                    <SelectItem value="CC">CC — Chair Car</SelectItem>
+                                    <SelectItem value="2S">2S — Second Sitting</SelectItem>
+                                    <SelectItem value="UR">UR — Unreserved (General)</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -313,12 +314,13 @@ export default function AdminFares() {
                                                         <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="1A">1A</SelectItem>
-                                                        <SelectItem value="2A">2A</SelectItem>
-                                                        <SelectItem value="3A">3A</SelectItem>
-                                                        <SelectItem value="SL">SL</SelectItem>
-                                                        <SelectItem value="CC">CC</SelectItem>
-                                                        <SelectItem value="2S">2S</SelectItem>
+                                                        <SelectItem value="1A">1A — First AC</SelectItem>
+                                                        <SelectItem value="2A">2A — Second AC</SelectItem>
+                                                        <SelectItem value="3A">3A — Third AC</SelectItem>
+                                                        <SelectItem value="SL">SL — Sleeper</SelectItem>
+                                                        <SelectItem value="CC">CC — Chair Car</SelectItem>
+                                                        <SelectItem value="2S">2S — Second Sitting</SelectItem>
+                                                        <SelectItem value="UR">UR — Unreserved (General)</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </TableCell>

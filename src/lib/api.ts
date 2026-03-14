@@ -100,6 +100,10 @@ export type Booking = {
   total_amount: string;
   booking_status: string;
   payment_status: string;
+  gen_ticket?: boolean;
+  gen_validity_start?: string;
+  gen_validity_end?: string;
+  is_downloadable?: boolean;
   createdAt?: string;
   train?: { train_number: string; train_name: string };
   passengers?: Array<{
