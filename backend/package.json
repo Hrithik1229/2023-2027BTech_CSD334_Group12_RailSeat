@@ -6,7 +6,12 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "reset:seats": "node src/scripts/resetSeatStatus.js"
+    "reset:seats": "node src/scripts/resetSeatStatus.js",
+    "eval": "node src/scripts/runEvaluation.js",
+    "eval:accuracy": "node src/scripts/validateSeatAccuracy.js",
+    "eval:consistency": "node src/scripts/validateDataConsistency.js",
+    "eval:queries": "node src/scripts/analyzeQueryPerformance.js",
+    "eval:load": "k6 run src/scripts/loadTest.k6.js"
   },
   "keywords": [],
   "author": "",

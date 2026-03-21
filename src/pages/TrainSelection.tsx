@@ -847,6 +847,7 @@ const TrainSelection = () => {
                   {/* ── Inline Live Tracker (expands inside the card) ── */}
                   <TrainInlineTracker
                     runId={train.runId}
+                    trainId={train.trainDbId}
                     isOpen={expandedTrackerId === train.id}
                     onToggle={(e) => {
                       e.stopPropagation();

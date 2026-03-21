@@ -100,15 +100,59 @@ function getLocation(stops: TrackingStop[], now: Date): VirtualLocation {
   return { status: 'in_transit', progressPercent: 50, segmentProgress: 50, currentStopIndex: 0, nextStopIndex: null, currentStation: sName(sorted[0]), nextStation: null, statusLabel: 'En route' };
 }
 
+// ─── Run-picker: choose the best run (UP or DOWN) based on current time ──────
+interface RunCandidate {
+  run_id: number;
+  direction: 'UP' | 'DOWN';
+  stops: TrackingStop[];
+}
+
+function pickBestRun(runs: RunCandidate[], now: Date): RunCandidate | null {
+  if (runs.length === 0) return null;
+  if (runs.length === 1) return runs[0];
+
+  const nowM = now.getHours() * 60 + now.getMinutes();
+
+  // Score each run: prefer the one whose schedule is currently active
+  const scored = runs.map(run => {
+    const sorted = [...run.stops].sort((a, b) => a.stop_order - b.stop_order);
+    const firstDep = toMins(sorted[0]?.departure_time);
+    const lastArr = toMins(sorted[sorted.length - 1]?.arrival_time);
+
+    // Currently active: nowM is between first departure and last arrival
+    if (firstDep !== null && lastArr !== null) {
+      // Handle overnight journeys
+      const isOvernight = lastArr < firstDep;
+      const isActive = isOvernight
+        ? (nowM >= firstDep || nowM <= lastArr)
+        : (nowM >= firstDep && nowM <= lastArr);
+      if (isActive) return { run, score: 3, gap: 0 };
+
+      // Not started yet — how soon does it start?
+      let gap = firstDep - nowM;
+      if (gap < 0) gap += 1440; // wrap around midnight
+      return { run, score: 1, gap };
+    }
+    return { run, score: 0, gap: 9999 };
+  });
+
+  // Sort: active first (score 3), then soonest upcoming (score 1, smallest gap)
+  scored.sort((a, b) => b.score - a.score || a.gap - b.gap);
+  return scored[0].run;
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 interface TrainInlineTrackerProps {
   runId: string | number;
+  trainId?: string | number;  // When provided, fetches all runs and picks the best
   isOpen: boolean;
   onToggle: (e: React.MouseEvent) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export default function TrainInlineTracker({ runId, isOpen, onToggle }: TrainInlineTrackerProps) {
+export default function TrainInlineTracker({ runId, trainId, isOpen, onToggle }: TrainInlineTrackerProps) {
+  const [allRuns, setAllRuns]    = useState<RunCandidate[]>([]);
+  const [activeRun, setActiveRun] = useState<RunCandidate | null>(null);
   const [stops, setStops]       = useState<TrackingStop[]>([]);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
@@ -116,24 +160,45 @@ export default function TrainInlineTracker({ runId, isOpen, onToggle }: TrainInl
   const [containerW, setContainerW] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hasLoaded    = useRef(false);
-  // Sync ref so translateX can read real width without waiting for a re-render
   const widthRef     = useRef<number>(0);
 
-  // Fetch once on first open
+  // Fetch runs: if trainId is given fetch ALL runs, otherwise fall back to single runId
   useEffect(() => {
-    if (!isOpen || !runId || hasLoaded.current) return;
+    if (!isOpen || hasLoaded.current) return;
+    if (!trainId && !runId) return;
     hasLoaded.current = true;
     (async () => {
       setLoading(true);
       try {
-        const res  = await fetch(`${API_BASE}/trains/runs/${runId}`);
-        if (!res.ok) throw new Error('Failed');
-        const data = await res.json();
-        setStops([...(data.stops ?? [])].sort((a: TrackingStop, b: TrackingStop) => a.stop_order - b.stop_order));
+        if (trainId) {
+          // Fetch all runs for this train (GET /:id/stops returns array of runs)
+          const res = await fetch(`${API_BASE}/trains/${trainId}/stops`);
+          if (!res.ok) throw new Error('Failed');
+          const runsData: any[] = await res.json();
+          const candidates: RunCandidate[] = runsData.map((r: any) => ({
+            run_id: r.run_id,
+            direction: r.direction || 'UP',
+            stops: [...(r.stops ?? [])].sort((a: TrackingStop, b: TrackingStop) => a.stop_order - b.stop_order),
+          })).filter((r: RunCandidate) => r.stops.length > 0);
+          setAllRuns(candidates);
+          const best = pickBestRun(candidates, new Date());
+          setActiveRun(best);
+          setStops(best?.stops ?? []);
+        } else {
+          // Legacy: single run fetch
+          const res = await fetch(`${API_BASE}/trains/runs/${runId}`);
+          if (!res.ok) throw new Error('Failed');
+          const data = await res.json();
+          const sorted = [...(data.stops ?? [])].sort((a: TrackingStop, b: TrackingStop) => a.stop_order - b.stop_order);
+          const candidate: RunCandidate = { run_id: Number(runId), direction: data.direction || 'UP', stops: sorted };
+          setAllRuns([candidate]);
+          setActiveRun(candidate);
+          setStops(sorted);
+        }
       } catch { setError('Could not load schedule data.'); }
       finally  { setLoading(false); }
     })();
-  }, [isOpen, runId]);
+  }, [isOpen, runId, trainId]);
 
   // Clock tick every 10 s
   useEffect(() => {
@@ -225,6 +290,32 @@ export default function TrainInlineTracker({ runId, isOpen, onToggle }: TrainInl
 
               {/* ── Status row ───────────────────────────────────── */}
               <div className="flex flex-wrap items-center gap-2">
+                {/* Direction toggle (UP / DOWN) — only show if multiple runs exist */}
+                {allRuns.length > 1 && (
+                  <div className="inline-flex rounded-full border border-slate-200 overflow-hidden text-[10px] font-black uppercase tracking-widest">
+                    {allRuns.map(run => (
+                      <button
+                        key={run.run_id}
+                        onClick={() => { setActiveRun(run); setStops(run.stops); }}
+                        className={cn(
+                          'px-2.5 py-1 transition-all',
+                          activeRun?.run_id === run.run_id
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white text-slate-400 hover:bg-slate-50'
+                        )}
+                      >
+                        {run.direction === 'UP' ? '↑ UP' : '↓ DN'}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {/* Single-run direction badge */}
+                {allRuns.length === 1 && activeRun && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full">
+                    {activeRun.direction === 'UP' ? '↑ UP' : '↓ DOWN'}
+                  </span>
+                )}
+
                 <span className={cn('inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border', sm.badge)}>
                   <span className={cn('w-1.5 h-1.5 rounded-full', sm.dot, loc.status === 'at_station' && 'animate-pulse')} />
                   {loc.statusLabel}
@@ -234,13 +325,13 @@ export default function TrainInlineTracker({ runId, isOpen, onToggle }: TrainInl
                 {loc.status === 'in_transit' && loc.nextStation && loc.nextStopIndex !== null && (
                   <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-100 px-3 py-1 rounded-full">
                     <Navigation className="w-3 h-3" />
-                    {stops[loc.nextStopIndex] && sCode(stops[loc.nextStopIndex])} · {stops[loc.nextStopIndex]?.arrival_time?.substring(0, 5)}
+                    {sortedStops[loc.nextStopIndex] && sCode(sortedStops[loc.nextStopIndex])} · {sortedStops[loc.nextStopIndex]?.arrival_time?.substring(0, 5)}
                   </span>
                 )}
-                {loc.status === 'at_station' && stops[loc.currentStopIndex]?.departure_time && (
+                {loc.status === 'at_station' && sortedStops[loc.currentStopIndex]?.departure_time && (
                   <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-3 py-1 rounded-full">
                     <MapPin className="w-3 h-3" />
-                    Dep {stops[loc.currentStopIndex].departure_time?.substring(0, 5)}
+                    Dep {sortedStops[loc.currentStopIndex].departure_time?.substring(0, 5)}
                   </span>
                 )}
 

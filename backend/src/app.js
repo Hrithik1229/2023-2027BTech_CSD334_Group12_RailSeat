@@ -8,10 +8,18 @@ import seatRoutes from "./routes/seat.routes.js";
 import trainRoutes from "./routes/train.routes.js";
 import userRoutes from "./routes/user.routes.js";
 
+// ── Evaluation Framework Middleware ──────────────────────────────────────────
+import { metricsMiddleware, getMetricsSnapshot } from "./middleware/metricsCollector.js";
+import { reliabilityLogger, getReliabilityReport } from "./middleware/reliabilityLogger.js";
+
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// ── Attach evaluation middleware (before routes) ─────────────────────────────
+app.use(metricsMiddleware);
+app.use(reliabilityLogger);
 
 // Routes
 app.use("/api/auth", authRoutes);
@@ -24,6 +32,15 @@ app.use("/api/admin", adminRoutes);
 
 app.get("/api/test", (req, res) => {
   res.send("API is working");
+});
+
+// ── Evaluation Framework Endpoints ───────────────────────────────────────────
+app.get("/api/metrics", (req, res) => {
+  res.json(getMetricsSnapshot());
+});
+
+app.get("/api/reliability", (req, res) => {
+  res.json(getReliabilityReport());
 });
 
 // Health-check endpoint for the frontend server-detection ping

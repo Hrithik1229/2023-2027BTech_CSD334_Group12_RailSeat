@@ -378,6 +378,7 @@ const TrainResults = () => {
                             {/* Inline horizontal live tracker — expands inside the card */}
                             <TrainInlineTracker
                               runId={trackId}
+                              trainId={train.train_id}
                               isOpen={isTracking}
                               onToggle={() => setExpandedTrackerId(prev => prev === trackId ? null : trackId)}
                             />

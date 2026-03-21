@@ -19,10 +19,10 @@ const migrate = async () => {
         const describe = await qi.describeTable("bookings");
 
         const columns = [
-            { name: "gen_ticket",          type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
-            { name: "gen_validity_start",  type: DataTypes.DATE,    allowNull: true                       },
-            { name: "gen_validity_end",    type: DataTypes.DATE,    allowNull: true                       },
-            { name: "is_downloadable",     type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true  },
+            { name: "gen_ticket", type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+            { name: "gen_validity_start", type: DataTypes.DATE, allowNull: true },
+            { name: "gen_validity_end", type: DataTypes.DATE, allowNull: true },
+            { name: "is_downloadable", type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
         ];
 
         for (const col of columns) {
