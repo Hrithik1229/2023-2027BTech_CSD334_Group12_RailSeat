@@ -40,7 +40,7 @@ const Seat = sequelize.define("Seat", {
         }
     },
     status: {
-        type: DataTypes.ENUM('available', 'selected', 'booked', 'locked'),
+        type: DataTypes.ENUM('available', 'selected', 'booked', 'locked', 'occupied'),
         defaultValue: 'available',
         allowNull: false
     },

@@ -8,6 +8,7 @@ const Index = () => {
   const navigate = useNavigate();
   const user = getStoredUser();
   const isAdmin = user?.role === 'admin' || user?.email === 'admin@gmail.com';
+  const isTC = user?.role === 'tc';
   const features = [
     {
       icon: MapPin,
@@ -98,6 +99,25 @@ const Index = () => {
                   <span className="relative flex items-center gap-2 text-white">
                     <LayoutDashboard className="w-5 h-5" />
                     Go to Admin Dashboard
+                    <ArrowRight className="w-5 h-5" />
+                  </span>
+                </button>
+              ) : isTC ? (
+                /* ── TC Dashboard button ── */
+                <button
+                  onClick={() => navigate('/tc-dashboard')}
+                  className="relative flex items-center px-8 py-4 overflow-hidden font-semibold text-lg transition-all bg-blue-600 rounded-xl group shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40"
+                >
+                  <span className="absolute top-0 right-0 inline-block w-5 h-5 transition-all duration-500 ease-in-out bg-blue-800 rounded group-hover:-mr-5 group-hover:-mt-5">
+                    <span className="absolute top-0 right-0 w-6 h-6 rotate-45 translate-x-1/2 -translate-y-1/2 bg-white" />
+                  </span>
+                  <span className="absolute bottom-0 rotate-180 left-0 inline-block w-5 h-5 transition-all duration-500 ease-in-out bg-blue-800 rounded group-hover:-ml-5 group-hover:-mb-5">
+                    <span className="absolute top-0 right-0 w-6 h-6 rotate-45 translate-x-1/2 -translate-y-1/2 bg-white" />
+                  </span>
+                  <span className="absolute bottom-0 left-0 w-full h-full transition-all duration-500 ease-in-out delay-200 -translate-x-full bg-blue-700 rounded-xl group-hover:translate-x-0" />
+                  <span className="relative flex items-center gap-2 text-white">
+                    <LayoutDashboard className="w-5 h-5" />
+                    Go to TC Dashboard
                     <ArrowRight className="w-5 h-5" />
                   </span>
                 </button>

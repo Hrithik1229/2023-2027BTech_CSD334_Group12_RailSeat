@@ -32,6 +32,8 @@ const Login = () => {
       toast({ title: "Welcome back!", description: `Logged in as ${user.username}` });
       if (user.role === 'admin') {
         navigate("/admin", { replace: true });
+      } else if (user.role === 'tc') {
+        navigate("/tc-dashboard", { replace: true });
       } else {
         navigate("/book", { replace: true });
       }

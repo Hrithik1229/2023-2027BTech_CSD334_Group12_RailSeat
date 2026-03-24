@@ -6,7 +6,7 @@ export type User = {
   user_id: number;
   username: string;
   email: string;
-  role?: 'user' | 'admin';
+  role?: 'user' | 'admin' | 'tc';
 };
 
 export type AuthResponse = {

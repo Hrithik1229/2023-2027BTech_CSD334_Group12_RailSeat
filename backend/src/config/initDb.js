@@ -118,6 +118,44 @@ const runSafeMigrations = async () => {
             console.warn(`⚠️  Migration: could not add ENUM value '${val}' to seat_type_pricing:`, err.message);
         }
     }
+
+    // ── users.role ENUM — add 'tc' value ─────────────────────────────────────
+    try {
+        await sequelize.query(
+            `DO $$ BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_enum e
+                    JOIN pg_type t ON e.enumtypid = t.oid
+                    WHERE t.typname = 'enum_users_role'
+                      AND e.enumlabel = 'tc'
+                ) THEN
+                    ALTER TYPE "enum_users_role" ADD VALUE 'tc';
+                END IF;
+            END $$;`
+        );
+        console.log(`✅ Migration: ensured ENUM value 'tc' in users.role`);
+    } catch (err) {
+        console.warn(`⚠️  Migration: could not add ENUM value 'tc' to users.role:`, err.message);
+    }
+
+    // ── seats.status ENUM — add 'occupied' value ─────────────────────────────
+    try {
+        await sequelize.query(
+            `DO $$ BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_enum e
+                    JOIN pg_type t ON e.enumtypid = t.oid
+                    WHERE t.typname = 'enum_seats_status'
+                      AND e.enumlabel = 'occupied'
+                ) THEN
+                    ALTER TYPE "enum_seats_status" ADD VALUE 'occupied';
+                END IF;
+            END $$;`
+        );
+        console.log(`✅ Migration: ensured ENUM value 'occupied' in seats.status`);
+    } catch (err) {
+        console.warn(`⚠️  Migration: could not add ENUM value 'occupied' to seats.status:`, err.message);
+    }
 };
 
 

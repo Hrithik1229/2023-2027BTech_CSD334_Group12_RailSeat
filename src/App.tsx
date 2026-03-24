@@ -14,6 +14,7 @@ import GenBooking from "./pages/GenBooking";
 import SeatBooking from "./pages/SeatBooking";
 import Signup from "./pages/Signup";
 import TrainResults from "./pages/TrainResults";
+import TCDashboard from "./pages/TCDashboard";
 
 import { AdminLayout } from "./components/AdminLayout";
 import AdminCoaches from "./pages/Admin/Coaches";
@@ -89,6 +90,7 @@ function AppWithHealthCheck() {
         <Route path="/profile"              element={<Profile />} />
         <Route path="/seats"                element={<SeatBooking />} />
         <Route path="/gen-booking"           element={<GenBooking />} />
+        <Route path="/tc-dashboard"          element={<TCDashboard />} />
 
         {/* Admin Routes */}
         <Route path="/admin/login"          element={<AdminLogin />} />

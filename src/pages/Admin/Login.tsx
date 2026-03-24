@@ -33,8 +33,11 @@ export default function AdminLogin() {
                 localStorage.setItem("admin_token", "admin_session_valid");
                 localStorage.setItem("user", JSON.stringify(data.user));
                 navigate("/admin");
+            } else if (data.user.role === 'tc') {
+                localStorage.setItem("railseat_user", JSON.stringify(data.user));
+                navigate("/tc-dashboard");
             } else {
-                setError("Access denied: You do not have admin privileges.");
+                setError("Access denied: You do not have admin or TC privileges.");
             }
 
         } catch (err) {

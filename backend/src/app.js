@@ -7,6 +7,7 @@ import paymentRoutes from "./routes/payment.routes.js";
 import seatRoutes from "./routes/seat.routes.js";
 import trainRoutes from "./routes/train.routes.js";
 import userRoutes from "./routes/user.routes.js";
+import tcRoutes from "./routes/tc.routes.js";
 
 // ── Evaluation Framework Middleware ──────────────────────────────────────────
 import { metricsMiddleware, getMetricsSnapshot } from "./middleware/metricsCollector.js";
@@ -29,6 +30,7 @@ app.use("/api/seats", seatRoutes);
 app.use("/api/trains", trainRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/tc", tcRoutes);
 
 app.get("/api/test", (req, res) => {
   res.send("API is working");
