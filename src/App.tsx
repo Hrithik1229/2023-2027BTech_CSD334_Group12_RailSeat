@@ -11,6 +11,7 @@ import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
 import SearchTrains from "./pages/SearchTrains";
 import GenBooking from "./pages/GenBooking";
+import GenTicketSearch from "./pages/GenTicketSearch";
 import SeatBooking from "./pages/SeatBooking";
 import Signup from "./pages/Signup";
 import TrainResults from "./pages/TrainResults";
@@ -90,6 +91,7 @@ function AppWithHealthCheck() {
         <Route path="/profile"              element={<Profile />} />
         <Route path="/seats"                element={<SeatBooking />} />
         <Route path="/gen-booking"           element={<GenBooking />} />
+        <Route path="/gen-search"            element={<GenTicketSearch />} />
         <Route path="/tc-dashboard"          element={<TCDashboard />} />
 
         {/* Admin Routes */}

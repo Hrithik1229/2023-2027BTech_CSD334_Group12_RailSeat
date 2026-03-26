@@ -228,24 +228,127 @@ export const updateBookingStatus = async (req, res) => {
   }
 };
 
-// Cancel booking
+// ─── Indian Railways cancellation refund calculator ───────────────────────
+// Returns { refundAmount, cancellationCharge, hoursBeforeDeparture, policy }
+const calculateRefund = (booking, coachType = "SL") => {
+  const travelDate = new Date(booking.travel_date + "T00:00:00");
+  const now = new Date();
+  const hoursBeforeDeparture = (travelDate - now) / (1000 * 60 * 60);
+  const totalAmount = Number(booking.total_amount) || 0;
+
+  // GEN tickets are non-refundable
+  if (booking.gen_ticket) {
+    return { refundAmount: 0, cancellationCharge: totalAmount, hoursBeforeDeparture, policy: "no_refund", reason: "GEN (unreserved) tickets are non-refundable." };
+  }
+
+  // Past departure — no refund
+  if (hoursBeforeDeparture <= 0) {
+    return { refundAmount: 0, cancellationCharge: totalAmount, hoursBeforeDeparture, policy: "no_refund", reason: "Cancellation after departure — no refund." };
+  }
+
+  // < 4 hours before departure — no refund
+  if (hoursBeforeDeparture < 4) {
+    return { refundAmount: 0, cancellationCharge: totalAmount, hoursBeforeDeparture, policy: "no_refund", reason: "Cancellation within 4 hours of departure — no refund." };
+  }
+
+  // Flat charge per IR rules (per ticket, not per passenger)
+  const flatCharge = coachType.startsWith("1A") ? 240
+    : coachType.startsWith("2A") ? 200
+    : coachType.startsWith("3A") ? 180
+    : coachType === "CC" || coachType === "2S" ? 60
+    : 120; // SL default
+
+  // 4–12 hours: 50% of fare (min flat charge)
+  if (hoursBeforeDeparture < 12) {
+    const charge = Math.max(flatCharge, Math.round(totalAmount * 0.50));
+    return { refundAmount: Math.max(0, totalAmount - charge), cancellationCharge: charge, hoursBeforeDeparture, policy: "50_percent", reason: "50% cancellation charge (4–12 hrs before departure)." };
+  }
+
+  // 12–48 hours: 25% of fare (min flat charge)
+  if (hoursBeforeDeparture < 48) {
+    const charge = Math.max(flatCharge, Math.round(totalAmount * 0.25));
+    return { refundAmount: Math.max(0, totalAmount - charge), cancellationCharge: charge, hoursBeforeDeparture, policy: "25_percent", reason: "25% cancellation charge (12–48 hrs before departure)." };
+  }
+
+  // > 48 hours: flat charge only
+  const charge = flatCharge;
+  return { refundAmount: Math.max(0, totalAmount - charge), cancellationCharge: charge, hoursBeforeDeparture, policy: "flat_charge", reason: `Flat cancellation charge of ₹${charge} (> 48 hrs before departure).` };
+};
+
+// GET /api/bookings/:id/cancel-preview  — returns refund estimate without cancelling
+export const cancelPreview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const booking = await Booking.findByPk(id, {
+      include: [
+        {
+          model: Passenger,
+          as: "passengers",
+          include: [{ model: Seat, as: "seat", include: [{ model: Coach, as: "coach" }] }],
+        },
+      ],
+    });
+
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+    if (booking.booking_status === "cancelled") {
+      return res.status(400).json({ error: "Booking is already cancelled." });
+    }
+
+    const coachType = booking.passengers?.[0]?.seat?.coach?.coach_type || "SL";
+    const refundInfo = calculateRefund(booking, coachType);
+    return res.json({ ...refundInfo, totalAmount: Number(booking.total_amount) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// PUT /api/bookings/:id/cancel  — actually cancels with refund info stored
 export const cancelBooking = async (req, res) => {
   try {
     const { id } = req.params;
-    const booking = await Booking.findByPk(id);
+    const booking = await Booking.findByPk(id, {
+      include: [
+        {
+          model: Passenger,
+          as: "passengers",
+          include: [{ model: Seat, as: "seat", include: [{ model: Coach, as: "coach" }] }],
+        },
+      ],
+    });
 
-    if (!booking) {
-      return res.status(404).json({ error: "Booking not found" });
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+    if (booking.booking_status === "cancelled") {
+      return res.status(400).json({ error: "Booking is already cancelled." });
     }
 
+    const coachType = booking.passengers?.[0]?.seat?.coach?.coach_type || "SL";
+    const refundInfo = calculateRefund(booking, coachType);
+
     booking.booking_status = "cancelled";
+    booking.payment_status = "refunded"; // "refunded" covers both full & ₹0 refund cases
     await booking.save();
 
-    // IMPORTANT: Do NOT update seat status when cancelling
-    // Seat availability is date-based and checked dynamically via getAvailableSeats()
-    // Cancelled bookings are automatically excluded from availability checks
+    // Emit seats-unlocked so real-time seat maps update for other users
+    try {
+      const { getIO } = await import("../sockets.js");
+      const io = getIO();
+      const travelDateStr = typeof booking.travel_date === "string"
+        ? booking.travel_date
+        : new Date(booking.travel_date).toISOString().split("T")[0];
+      const seatIds = booking.passengers?.map(p => p.seat_id).filter(Boolean) || [];
+      if (seatIds.length) {
+        io.emit("seats-unlocked", { seatIds, date: travelDateStr, trainId: booking.train_id });
+      }
+    } catch (e) {
+      console.error("Failed to emit seats-unlocked after cancel:", e);
+    }
 
-    res.json({ message: "Booking cancelled successfully", booking });
+    res.json({
+      message: "Booking cancelled successfully",
+      booking,
+      ...refundInfo,
+      totalAmount: Number(booking.total_amount),
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

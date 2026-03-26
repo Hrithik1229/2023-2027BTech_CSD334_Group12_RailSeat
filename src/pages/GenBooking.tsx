@@ -156,6 +156,44 @@ const GenBooking = () => {
             const order = await orderRes.json();
             setIsSubmitting(false);
 
+            // Mock payment: skip Razorpay UI, directly verify on backend
+            if (order?.provider === "mock" || order?.key_id === "mock") {
+                const verifyRes = await fetch(`${API_BASE}/payments/verify-gen-payment`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        contactName: user.username || "Unreserved Passenger",
+                        email: user.email,
+                        userId: user.user_id,
+                        trainId,
+                        sourceStation: source,
+                        destinationStation: destination,
+                        travelDate: isoDate,
+                        passengers: Array.from({ length: totalPassengers }).map((_, i) => ({
+                            name: i < counts.adults ? "Adult" : "Child",
+                            gender: "other",
+                        })),
+                        totalAmount: safeTotal,
+                        sentinelSeatId: genInfo?.sentinelSeatId,
+                    }),
+                });
+                const data = await verifyRes.json();
+                if (!verifyRes.ok || !data.verified) throw new Error(data.error || "Mock payment verification failed.");
+
+                toast.success("🎉 Booking Confirmed!", {
+                    description: (
+                        <div className="flex flex-col gap-1">
+                            <span className="font-semibold">PNR: {data.booking.booking_number}</span>
+                            <span>Amount Paid: ₹{totalFare}</span>
+                            <span className="text-xs text-muted-foreground">Payment: Mock • Valid 3 hrs</span>
+                        </div>
+                    ),
+                    duration: 8000,
+                });
+                navigate("/profile");
+                return;
+            }
+
             if (!window.Razorpay) {
                 await new Promise<void>((res, rej) => {
                     const s = document.createElement('script');

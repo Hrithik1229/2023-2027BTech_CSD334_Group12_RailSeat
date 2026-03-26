@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
+    "seed": "node src/scripts/seed.js",
     "reset:seats": "node src/scripts/resetSeatStatus.js",
     "eval": "node src/scripts/runEvaluation.js",
     "eval:accuracy": "node src/scripts/validateSeatAccuracy.js",

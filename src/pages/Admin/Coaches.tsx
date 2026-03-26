@@ -51,7 +51,8 @@ export default function AdminCoaches() {
             return;
         }
 
-        if (newCoach.capacity < 1) {
+        // GEN coaches have no fixed capacity — skip capacity validation
+        if (newCoach.coach_type !== "GEN" && newCoach.capacity < 1) {
             toast.error("Capacity must be at least 1");
             return;
         }
@@ -326,18 +327,27 @@ export default function AdminCoaches() {
                                         <div>
                                             <label className="text-[11px] uppercase font-semibold text-slate-400 mb-1 block">
                                                 Capacity
+                                                {(creatingFor === train.train_id ? newCoach.coach_type : "SL") === "GEN" && (
+                                                    <span className="ml-1.5 text-amber-500 normal-case font-medium">— unreserved</span>
+                                                )}
                                             </label>
-                                            <Input
-                                                type="number"
-                                                min="1"
-                                                max="200"
-                                                value={creatingFor === train.train_id ? newCoach.capacity : 72}
-                                                onChange={(e) => {
-                                                    setCreatingFor(train.train_id);
-                                                    setNewCoach(prev => ({ ...prev, capacity: parseInt(e.target.value) || 72 }));
-                                                }}
-                                                className="h-10"
-                                            />
+                                            {(creatingFor === train.train_id ? newCoach.coach_type : "SL") === "GEN" ? (
+                                                <div className="h-10 flex items-center px-3 rounded-md border border-slate-200 bg-slate-50 text-slate-400 text-sm select-none cursor-not-allowed">
+                                                    🔒 No fixed capacity
+                                                </div>
+                                            ) : (
+                                                <Input
+                                                    type="number"
+                                                    min="1"
+                                                    max="200"
+                                                    value={creatingFor === train.train_id ? newCoach.capacity : 72}
+                                                    onChange={(e) => {
+                                                        setCreatingFor(train.train_id);
+                                                        setNewCoach(prev => ({ ...prev, capacity: parseInt(e.target.value) || 72 }));
+                                                    }}
+                                                    className="h-10"
+                                                />
+                                            )}
                                         </div>
                                         <div className="flex items-end">
                                             <Button
@@ -353,7 +363,9 @@ export default function AdminCoaches() {
                                         </div>
                                     </div>
                                     <p className="text-[10px] text-slate-400 mt-2 italic">
-                                        💡 Seats will be auto-generated based on the selected coach type and capacity
+                                        {(creatingFor === train.train_id ? newCoach.coach_type : "SL") === "GEN"
+                                            ? "💡 GEN coaches are unreserved — capacity is not applicable. A single unreserved pool is created."
+                                            : "💡 Seats will be auto-generated based on the selected coach type and capacity"}
                                     </p>
                                 </div>
                             </CardContent>

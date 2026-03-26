@@ -3,11 +3,22 @@ import Razorpay from "razorpay";
 import { Booking, Coach, Passenger, Seat, Train } from "../models/index.js";
 import { activeLocks, getIO } from "../sockets.js";
 
-// Initialize Razorpay instance using test mode keys from .env
-const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+const paymentProvider = String(process.env.PAYMENT_PROVIDER || "").toLowerCase();
+const isMockPaymentsEnabled =
+    paymentProvider === "mock" ||
+    !process.env.RAZORPAY_KEY_ID ||
+    !process.env.RAZORPAY_KEY_SECRET;
+
+let razorpayClient = null;
+function getRazorpayClient() {
+    if (isMockPaymentsEnabled) return null;
+    if (razorpayClient) return razorpayClient;
+    razorpayClient = new Razorpay({
+        key_id: process.env.RAZORPAY_KEY_ID,
+        key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
+    return razorpayClient;
+}
 
 // ──────────────────────────────────────────────
 // POST /api/payments/create-order
@@ -25,29 +36,31 @@ export const createOrder = async (req, res) => {
             trainId,
         } = req.body;
 
-        if (!socketId) {
-            return res.status(400).json({ error: "Socket ID is required to create order." });
-        }
-
         if (!seats || seats.length === 0) {
             return res.status(400).json({ error: "No seats provided." });
         }
 
-        // Validate that all seats are still locked by this socket session
         const seatIds = seats.map(s => s.seatId);
         const travelDateStr =
             typeof travelDate === "string"
                 ? travelDate
                 : new Date(travelDate).toISOString().split("T")[0];
 
-        const now = new Date();
-        for (const seatId of seatIds) {
-            const key = `${seatId}_${travelDateStr}`;
-            const lock = activeLocks.get(key);
-            if (!lock || lock.expiresAt < now || lock.socketId !== socketId) {
-                return res.status(400).json({
-                    error: `Seat ${seatId} is not locked by your session, or the lock has expired. Please re-select your seats.`,
-                });
+        // In mock mode, skip seat-lock validation (socket may not be connected in tests/dev)
+        if (!isMockPaymentsEnabled) {
+            if (!socketId) {
+                return res.status(400).json({ error: "Socket ID is required to create order." });
+            }
+
+            const now = new Date();
+            for (const seatId of seatIds) {
+                const key = `${seatId}_${travelDateStr}`;
+                const lock = activeLocks.get(key);
+                if (!lock || lock.expiresAt < now || lock.socketId !== socketId) {
+                    return res.status(400).json({
+                        error: `Seat ${seatId} is not locked by your session, or the lock has expired. Please re-select your seats.`,
+                    });
+                }
             }
         }
 
@@ -58,6 +71,17 @@ export const createOrder = async (req, res) => {
             return res.status(400).json({ error: "Invalid booking amount." });
         }
 
+        if (isMockPaymentsEnabled) {
+            return res.status(200).json({
+                provider: "mock",
+                order_id: `mock_order_${Date.now()}`,
+                amount: amountInPaise,
+                currency: "INR",
+                key_id: "mock",
+            });
+        }
+
+        const razorpay = getRazorpayClient();
         // Create Razorpay order
         const order = await razorpay.orders.create({
             amount: amountInPaise,
@@ -111,42 +135,44 @@ export const verifyPayment = async (req, res) => {
             disabilityType,
         } = req.body;
 
-        // ── 1. Signature Verification ─────────────────────
-        const body = `${razorpay_order_id}|${razorpay_payment_id}`;
-        const expectedSignature = crypto
-            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-            .update(body)
-            .digest("hex");
+        // ── 1. Signature Verification (skipped in mock mode) ──────────
+        if (!isMockPaymentsEnabled) {
+            const body = `${razorpay_order_id}|${razorpay_payment_id}`;
+            const expectedSignature = crypto
+                .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+                .update(body)
+                .digest("hex");
 
-        if (expectedSignature !== razorpay_signature) {
-            // Signature mismatch → release locks and reject
-            if (socketId && seats && travelDate) {
-                const travelDateStr =
-                    typeof travelDate === "string"
-                        ? travelDate
-                        : new Date(travelDate).toISOString().split("T")[0];
+            if (expectedSignature !== razorpay_signature) {
+                // Signature mismatch → release locks and reject
+                if (socketId && seats && travelDate) {
+                    const travelDateStr =
+                        typeof travelDate === "string"
+                            ? travelDate
+                            : new Date(travelDate).toISOString().split("T")[0];
 
-                for (const { seatId } of seats) {
-                    const key = `${seatId}_${travelDateStr}`;
-                    activeLocks.delete(key);
+                    for (const { seatId } of seats) {
+                        const key = `${seatId}_${travelDateStr}`;
+                        activeLocks.delete(key);
+                    }
+
+                    try {
+                        const io = getIO();
+                        io.emit("seats-unlocked", {
+                            seatIds: seats.map(s => s.seatId),
+                            date: travelDateStr,
+                            trainId,
+                        });
+                    } catch (e) {
+                        console.error("Failed to emit seats-unlocked after bad signature:", e);
+                    }
                 }
 
-                try {
-                    const io = getIO();
-                    io.emit("seats-unlocked", {
-                        seatIds: seats.map(s => s.seatId),
-                        date: travelDateStr,
-                        trainId,
-                    });
-                } catch (e) {
-                    console.error("Failed to emit seats-unlocked after bad signature:", e);
-                }
+                return res.status(400).json({
+                    error: "Payment verification failed. Invalid signature.",
+                    verified: false,
+                });
             }
-
-            return res.status(400).json({
-                error: "Payment verification failed. Invalid signature.",
-                verified: false,
-            });
         }
 
         // ── 2. Signature is valid → Create Booking ────────
@@ -228,8 +254,9 @@ export const verifyPayment = async (req, res) => {
         return res.status(200).json({
             verified: true,
             booking: completeBooking,
-            payment_id: razorpay_payment_id,
-            order_id: razorpay_order_id,
+            provider: isMockPaymentsEnabled ? "mock" : "razorpay",
+            payment_id: razorpay_payment_id || `mock_pay_${Date.now()}`,
+            order_id: razorpay_order_id || `mock_order_${Date.now()}`,
         });
     } catch (error) {
         console.error("Error verifying payment:", error);
@@ -344,6 +371,17 @@ export const createGenOrder = async (req, res) => {
             return res.status(400).json({ error: "Invalid booking amount." });
         }
 
+        if (isMockPaymentsEnabled) {
+            return res.status(200).json({
+                provider: "mock",
+                order_id: `mock_gen_order_${Date.now()}`,
+                amount: amountInPaise,
+                currency: "INR",
+                key_id: "mock",
+            });
+        }
+
+        const razorpay = getRazorpayClient();
         const order = await razorpay.orders.create({
             amount: amountInPaise,
             currency: "INR",
@@ -392,15 +430,17 @@ export const verifyGenPayment = async (req, res) => {
             sentinelSeatId,
         } = req.body;
 
-        // 1. Verify Razorpay signature
-        const body = `${razorpay_order_id}|${razorpay_payment_id}`;
-        const expectedSignature = crypto
-            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-            .update(body)
-            .digest("hex");
+        // 1. Verify Razorpay signature (skipped in mock mode)
+        if (!isMockPaymentsEnabled) {
+            const body = `${razorpay_order_id}|${razorpay_payment_id}`;
+            const expectedSignature = crypto
+                .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+                .update(body)
+                .digest("hex");
 
-        if (expectedSignature !== razorpay_signature) {
-            return res.status(400).json({ error: "Payment verification failed. Invalid signature.", verified: false });
+            if (expectedSignature !== razorpay_signature) {
+                return res.status(400).json({ error: "Payment verification failed. Invalid signature.", verified: false });
+            }
         }
 
         const travelDateStr =
@@ -490,8 +530,9 @@ export const verifyGenPayment = async (req, res) => {
         return res.status(200).json({
             verified: true,
             booking: completeBooking,
-            payment_id: razorpay_payment_id,
-            order_id: razorpay_order_id,
+            provider: isMockPaymentsEnabled ? "mock" : "razorpay",
+            payment_id: razorpay_payment_id || `mock_pay_${Date.now()}`,
+            order_id: razorpay_order_id || `mock_order_${Date.now()}`,
         });
     } catch (error) {
         console.error("Error verifying GEN payment:", error);

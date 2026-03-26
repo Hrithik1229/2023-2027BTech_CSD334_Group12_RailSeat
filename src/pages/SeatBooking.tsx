@@ -1,5 +1,6 @@
 import { BookingSummary } from '@/components/BookingSummary';
 import { CoachSelector } from '@/components/CoachSelector';
+import MockRazorpayModal from '@/components/MockRazorpayModal';
 import Navbar from '@/components/Navbar';
 import { PassengerDetails, PassengerForm } from '@/components/PassengerForm';
 import { SeatMap } from '@/components/SeatMap';
@@ -8,7 +9,7 @@ import { SeatType as BerthType, CoachLayout, CoachRow, Seat as SeatType } from '
 import { API_BASE, getStoredUser } from '@/lib/api';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, MapPin, Train } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'sonner';
@@ -41,6 +42,10 @@ const SeatBooking = () => {
   const [lockedAPISeatIds, setLockedAPISeatIds] = useState<Set<string>>(new Set());
   const [disabilityType, setDisabilityType] = useState<string>('');
   const [socket, setSocket] = useState<Socket | null>(null);
+
+  // Mock Razorpay modal state
+  const [showMockModal, setShowMockModal] = useState(false);
+  const pendingMockPayload = useRef<any>(null); // booking payload waiting for mock payment
 
   // Map DB berth_type codes → frontend BerthType string union
   const mapBerthType = (berth: string): BerthType => {
@@ -137,8 +142,12 @@ const SeatBooking = () => {
   };
 
   useEffect(() => {
-    const backendUrl = API_BASE.replace(/\/api$/, '');
-    const newSocket = io(backendUrl || 'http://localhost:5001');
+    // In dev, Vite proxies /socket.io → localhost:3000 via ws:true proxy.
+    // In production, API_BASE is an absolute URL like https://myapp.com/api.
+    const socketBase = import.meta.env.DEV
+      ? window.location.origin  // Vite ws proxy handles /socket.io → :3000
+      : API_BASE.replace(/\/api$/, '');
+    const newSocket = io(socketBase);
     setSocket(newSocket);
 
     newSocket.on("seats-locked", (payload: any) => {
@@ -424,6 +433,23 @@ const SeatBooking = () => {
 
       const seatsPayload = selectedSeats.map(s => ({ seatId: parseInt(s.id), price: s.price }));
 
+      // ── Build booking payload early (needed for both mock and Razorpay flows) ─
+      const bookingPayload = {
+        contactName: passengers[0].name,
+        email: user?.email ?? passengers[0].name + '@guest.local',
+        userId: user?.user_id ?? undefined,
+        trainId: train.id,
+        sourceStation: source,
+        destinationStation: destination,
+        travelDate: travelDateStr,
+        seats: seatsPayload,
+        totalAmount: finalTotalAmount,
+        passengers: passengers.map(p => ({ name: p.name, gender: p.gender })),
+        socketId: socket?.id,
+        quota: quota,
+        disabilityType: disabilityType,
+      };
+
       // ── Step 2: Create Razorpay order on backend ─────────────────────────────
       const orderRes = await fetch(`${API_BASE}/payments/create-order`, {
         method: 'POST',
@@ -443,6 +469,14 @@ const SeatBooking = () => {
       }
 
       const order = await orderRes.json();
+      // ── Mock payment flow: show MockRazorpayModal instead of silent confirm ──
+      if (order?.provider === "mock" || order?.key_id === "mock") {
+        pendingMockPayload.current = { bookingPayload, finalTotalAmount, order };
+        setIsLoading(false);
+        setShowMockModal(true);
+        return;
+      }
+
       setIsLoading(false); // Allow Razorpay modal to render
 
       // ── Step 3: Ensure Razorpay script is loaded ─────────────────────────────
@@ -456,22 +490,7 @@ const SeatBooking = () => {
         });
       }
 
-      // ── Step 4: Build booking payload (passed along to verify endpoint) ──────
-      const bookingPayload = {
-        contactName: passengers[0].name,
-        email: user?.email ?? passengers[0].name + '@guest.local',
-        userId: user?.user_id ?? undefined,
-        trainId: train.id,
-        sourceStation: source,
-        destinationStation: destination,
-        travelDate: travelDateStr,
-        seats: seatsPayload,
-        totalAmount: finalTotalAmount,
-        passengers: passengers.map(p => ({ name: p.name, gender: p.gender })),
-        socketId: socket?.id,
-        quota: quota,
-        disabilityType: disabilityType,
-      };
+      // ── Step 4: bookingPayload already built above ───────────────────────────
 
       // ── Step 5: Open Razorpay checkout ───────────────────────────────────────
       const rzp = new window.Razorpay({
@@ -567,6 +586,67 @@ const SeatBooking = () => {
         socket.emit("cancel-booking");
     }
     setShowPassengerForm(false);
+  };
+
+  // ── Mock modal handlers ────────────────────────────────────────────────────
+  const handleMockSuccess = async (paymentId: string, orderId: string) => {
+    setShowMockModal(false);
+    if (!pendingMockPayload.current) return;
+    const { bookingPayload, finalTotalAmount } = pendingMockPayload.current;
+    setIsLoading(true);
+    try {
+      const verifyRes = await fetch(`${API_BASE}/payments/verify-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...bookingPayload,
+          razorpay_payment_id: paymentId,
+          razorpay_order_id: orderId,
+        }),
+      });
+      const verifyData = await verifyRes.json();
+      if (!verifyRes.ok || !verifyData.verified) {
+        throw new Error(verifyData.error || 'Mock payment verification failed.');
+      }
+      toast.success('🎉 Booking Confirmed!', {
+        description: (
+          <div className="flex flex-col gap-1">
+            <span className="font-semibold">PNR: {verifyData.booking.booking_number}</span>
+            <span>Amount Paid: ₹{finalTotalAmount}</span>
+            <span className="text-xs text-muted-foreground">Payment ID: {paymentId}</span>
+          </div>
+        ),
+        duration: 8000,
+      });
+      navigate('/book');
+    } catch (err: any) {
+      toast.error(`Booking Failed: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+      pendingMockPayload.current = null;
+    }
+  };
+
+  const handleMockDismiss = async () => {
+    setShowMockModal(false);
+    // Release seat locks
+    if (pendingMockPayload.current) {
+      const { bookingPayload } = pendingMockPayload.current;
+      try {
+        await fetch(`${API_BASE}/payments/release-seats`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            socketId: socket?.id,
+            seats: bookingPayload.seats,
+            travelDate: bookingPayload.travelDate,
+            trainId: bookingPayload.trainId,
+          }),
+        });
+      } catch (e) { /* silent */ }
+      pendingMockPayload.current = null;
+    }
+    toast.info('Payment cancelled. Seats have been released.');
   };
 
   const handleChangeCoach = () => {
@@ -757,6 +837,19 @@ const SeatBooking = () => {
           )}
         </AnimatePresence>
       </main>
+
+      {/* Mock Razorpay Modal */}
+      <MockRazorpayModal
+        isOpen={showMockModal}
+        amount={pendingMockPayload.current?.finalTotalAmount ?? 0}
+        orderId={pendingMockPayload.current?.order?.order_id ?? ''}
+        userName={pendingMockPayload.current?.bookingPayload?.contactName ?? ''}
+        userPhone={undefined}
+        trainName={train?.name ?? ''}
+        onSuccess={handleMockSuccess}
+        onFailure={handleMockDismiss}
+        onDismiss={handleMockDismiss}
+      />
     </div>
   );
 };
