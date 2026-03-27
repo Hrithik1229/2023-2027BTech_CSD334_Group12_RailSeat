@@ -19,7 +19,6 @@ A modern, full-stack train ticket booking application with interactive seat sele
 - [Frontend Architecture](#frontend-architecture)
 - [Backend Architecture](#backend-architecture)
 - [Database Schema](#database-schema)
-- [Screenshots](#screenshots)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -31,7 +30,9 @@ RailSeat is a comprehensive train booking platform that allows users to:
 - Search for available trains between stations
 - Select intermediate boarding and dropping points
 - View interactive coach layouts with real-time seat availability
-- Book multiple seats (up to 6 per transaction)
+- Book multiple seats (up to 6 per transaction) with Razorpay-style payment
+- Book unreserved (General) tickets for same-day travel
+- Cancel bookings with automatic Indian Railways refund calculation
 - Enter passenger details and complete reservations
 
 The application features a modern, responsive UI built with React and a robust Node.js/Express backend with PostgreSQL database.
@@ -44,15 +45,21 @@ The application features a modern, responsive UI built with React and a robust N
 - **Train Search**: Browse available trains between source and destination stations
 - **Intermediate Stops**: Select custom boarding and dropping points along the train route
 - **Visual Seat Selection**: Interactive coach layouts showing real-time seat availability
-- **Multiple Coach Types**: Support for Sleeper, AC 2-Tier, and Chair Car configurations
+- **Multiple Coach Types**: Support for 1A, 2A, 3A, Sleeper, Chair Car (CC), and General (GEN) coaches
 - **Passenger Management**: Add details for multiple passengers per booking
 - **Booking Confirmation**: Instant PNR generation with booking summary
+- **Mock Razorpay Payment**: Realistic two-panel payment flow (method selection → success screen) mimicking real Razorpay UX
+- **General (Unreserved) Ticket Booking**: Dedicated search and booking flow for GEN coaches with same-day travel, auto-fare calculation
+- **Ticket Cancellation**: Cancel reserved bookings from Profile with real-time refund breakdown based on Indian Railways policy
+- **Real Train Data**: 20 real IR trains with accurate rake compositions and 2024 fare tables
+- **GEN Coach Enforcement**: "View Seats" disabled for trains without reserved coaches; GEN ticket flow restricted to GEN-coach trains only
 
 ### User Experience
 - **Responsive Design**: Works seamlessly on desktop and mobile devices
 - **Smooth Animations**: Framer Motion powered transitions and micro-interactions
 - **Real-time Feedback**: Toast notifications for booking actions
 - **Date-based Availability**: Seats availability calculated dynamically per travel date
+- **Cancellation Dialog**: shadcn/ui AlertDialog showing refund amount, cancellation charge and departure-time-based tier before confirming
 
 ---
 
@@ -84,6 +91,8 @@ The application features a modern, responsive UI built with React and a robust N
 | CORS | Cross-Origin Resource Sharing |
 | dotenv | Environment Variables |
 | Socket.io | Real-time Communication (Optional) |
+| bcryptjs | Password Hashing |
+| JWT / express-session | Authentication |
 
 ---
 
@@ -100,9 +109,14 @@ Train Booking System/
     │   │   │   ├── db.js          # Database connection
     │   │   │   └── initDb.js      # Database initialization
     │   │   ├── controllers/       # Route handlers
-    │   │   │   ├── booking.controller.js
+    │   │   │   ├── booking.controller.js  # Booking CRUD + cancellation with refund
+    │   │   │   ├── payment.controller.js  # Mock Razorpay payment flow
+    │   │   │   ├── ticket.controller.js   # General ticket creation
     │   │   │   ├── seat.controller.js
     │   │   │   ├── train.controller.js
+    │   │   │   ├── auth.controller.js
+    │   │   │   ├── admin.controller.js
+    │   │   │   ├── tc.controller.js
     │   │   │   └── user.controller.js
     │   │   ├── models/            # Sequelize models
     │   │   │   ├── booking.model.js
@@ -119,7 +133,7 @@ Train Booking System/
     │   │   │   ├── train.routes.js
     │   │   │   └── user.routes.js
     │   │   └── scripts/           # Utility scripts
-    │   │       ├── seed.js        # Database seeding
+    │   │       ├── seed.js        # Database seeding (20 real IR trains)
     │   │       ├── resetSeatStatus.js
     │   │       └── check_data.js
     │   └── package.json
@@ -129,17 +143,30 @@ Train Booking System/
     │   ├── App.tsx                # Root component with routing
     │   ├── index.css              # Global styles
     │   ├── pages/                 # Page components
-    │   │   ├── Index.tsx          # Landing page
+    │   │   ├── Index.tsx          # Landing page (incl. Book General Ticket)
+    │   │   ├── SearchTrains.tsx   # Reserved ticket train search
+    │   │   ├── TrainResults.tsx   # Train listing with GEN enforcement
     │   │   ├── TrainSelection.tsx # Train search & selection
     │   │   ├── SeatBooking.tsx    # Seat selection & booking
+    │   │   ├── GenTicketSearch.tsx # General ticket search (source/dest/date)
+    │   │   ├── GenBooking.tsx     # General (unreserved) ticket booking & payment
+    │   │   ├── Profile.tsx        # User profile + bookings + cancellation
+    │   │   ├── Login.tsx
+    │   │   ├── Signup.tsx
+    │   │   ├── TCDashboard.tsx    # Ticket Checker dashboard
     │   │   └── NotFound.tsx       # 404 page
     │   ├── components/            # Reusable components
+    │   │   ├── MockRazorpayModal.tsx  # Two-panel payment flow UI
+    │   │   ├── GenTicketView.tsx      # General ticket display card
     │   │   ├── BookingSummary.tsx
     │   │   ├── CoachSelector.tsx
     │   │   ├── PassengerForm.tsx
     │   │   ├── Seat.tsx
     │   │   ├── SeatLegend.tsx
     │   │   ├── SeatMap.tsx
+    │   │   ├── StationSearchInput.tsx
+    │   │   ├── Navbar.tsx
+    │   │   ├── ServerDown.tsx
     │   │   └── ui/                # shadcn/ui components
     │   ├── data/
     │   │   └── coachLayouts.ts    # Coach layout type definitions
@@ -280,11 +307,11 @@ http://localhost:3000/api
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/bookings` | Create a new booking |
+| POST | `/bookings` | Create a new reserved booking |
 | GET | `/bookings/:id` | Get booking by ID |
 | GET | `/bookings/search?email=` | Get bookings by email |
 | PUT | `/bookings/:id/status` | Update booking status |
-| PUT | `/bookings/:id/cancel` | Cancel a booking |
+| POST | `/bookings/:id/cancel` | Cancel a booking with refund calculation |
 
 **Example Request - POST /bookings**
 ```json
@@ -306,22 +333,32 @@ http://localhost:3000/api
 }
 ```
 
-**Example Response**
+**Cancellation Response - POST /bookings/:id/cancel**
 ```json
 {
-  "booking_id": 1,
-  "booking_number": "BK17058234561234",
-  "contact_name": "John Doe",
-  "email": "john@example.com",
-  "train_id": 1,
-  "source_station": "New Delhi",
-  "destination_station": "Mumbai Central",
-  "travel_date": "2025-02-15",
-  "total_amount": "2900.00",
-  "booking_status": "pending",
-  "payment_status": "pending"
+  "message": "Booking cancelled successfully",
+  "refundAmount": 1450.00,
+  "cancellationCharge": 362.50,
+  "hoursBeforeDeparture": 30,
+  "booking_status": "cancelled",
+  "payment_status": "refunded"
 }
 ```
+
+#### General (Unreserved) Tickets
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/tickets/general` | Create a general ticket |
+| GET | `/tickets/general/:id` | Get general ticket by ID |
+| GET | `/tickets/general/search?email=` | Get general tickets by email |
+
+#### Payment
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/payment/initiate` | Initiate mock Razorpay order |
+| POST | `/payment/verify` | Verify payment and confirm booking |
 
 #### Seats
 
@@ -340,40 +377,75 @@ http://localhost:3000/api
    - Hero section with call-to-action
    - Features showcase
    - How it works section
-   - Navigation to booking flow
+   - **"Book General Ticket"** button for same-day unreserved travel
+   - Navigation to both reserved and general booking flows
 
-2. **TrainSelection**
-   - Source/destination station selection
+2. **SearchTrains / TrainResults**
+   - Source/destination station selection with autocomplete
    - Date picker for travel date
-   - Train listing with details (duration, timings, amenities)
-   - Intermediate stop selection for boarding/dropping points
+   - Train listing with details (duration, timings, amenities, coach types)
+   - **GEN Enforcement**: "View Seats" button disabled for trains with no reserved coaches
 
-3. **SeatBooking**
+3. **TrainSelection**
+   - Full train details with intermediate stop selection for boarding/dropping points
+
+4. **SeatBooking**
    - Coach selector (tabs for different coaches)
    - Interactive seat map with different layouts:
-     - **Sleeper**: 8 berths per compartment (6 main + 2 side)
-     - **AC 2-Tier**: 6 berths per compartment (4 main + 2 side)
-     - **Chair Car**: 5 seats per row (3+2 configuration)
+     - **Sleeper (SL)**: 8 berths per compartment (6 main + 2 side)
+     - **AC 3-Tier (3A)**: 8 berths per compartment (6 main + 2 side)
+     - **AC 2-Tier (2A)**: 6 berths per compartment (4 main + 2 side)
+     - **First AC (1A)**: 4 berths per compartment
+     - **Chair Car (CC)**: 5 seats per row (3+2 configuration)
    - Real-time seat selection with visual feedback
-   - Booking summary sidebar
+   - Booking summary sidebar with dynamic fare display
    - Passenger details form
+   - **Mock Razorpay payment** modal on final booking step
+
+5. **GenTicketSearch** *(New)*
+   - Source/destination selection for general ticket
+   - Travel date fixed to today
+   - Filters trains to only those with GEN coaches
+   - Routes user to `GenBooking` page
+
+6. **GenBooking** *(New)*
+   - Displays train details and GEN fare (based on distance)
+   - Passenger count selector
+   - Total fare calculation using 2024 IR GEN fare rules
+   - Integrated **Mock Razorpay payment** flow
+   - Generates general ticket with unique ticket number
+
+7. **Profile**
+   - Displays all user bookings (reserved and general)
+   - **Cancel Ticket** button for eligible reserved bookings
+   - `AlertDialog` confirmation showing:
+     - Refund amount
+     - Cancellation charge
+     - Tier applied (hours before departure)
+   - Shows cancellation/refund status after completion
 
 ### Component Hierarchy
 
 ```
 App
 ├── Index (Landing)
-├── TrainSelection
-│   ├── Station Selectors
-│   ├── Date Picker
-│   └── Train Cards
-└── SeatBooking
-    ├── CoachSelector
-    ├── SeatMap
-    │   ├── SeatLegend
-    │   └── Seat (individual)
-    ├── BookingSummary
-    └── PassengerForm
+│   └── GenTicketSearch entry point
+├── SearchTrains → TrainResults
+│   └── TrainSelection
+│       └── SeatBooking
+│           ├── CoachSelector
+│           ├── SeatMap
+│           │   ├── SeatLegend
+│           │   └── Seat (individual)
+│           ├── BookingSummary
+│           ├── PassengerForm
+│           └── MockRazorpayModal
+├── GenTicketSearch → GenBooking
+│   ├── StationSearchInput
+│   ├── GenTicketView
+│   └── MockRazorpayModal
+└── Profile
+    └── AlertDialog (cancellation confirmation)
 ```
 
 ### State Management
@@ -404,20 +476,54 @@ Train (1) ─────────< Coach (many)
 Each controller handles business logic for its domain:
 
 - **train.controller.js**: Train CRUD, search, stops
-- **booking.controller.js**: Booking creation, status updates, cancellation
+- **booking.controller.js**: Booking creation, status updates, cancellation with refund
+- **payment.controller.js**: Mock Razorpay order initiation and payment verification
+- **ticket.controller.js**: General (unreserved) ticket creation and retrieval
 - **seat.controller.js**: Seat availability queries
-- **user.controller.js**: User management (optional)
+- **auth.controller.js**: User registration and login
+- **admin.controller.js**: Admin management endpoints
+- **tc.controller.js**: Ticket Checker (TC) dashboard
+- **user.controller.js**: User profile management
 
-### Booking Flow
+### Reserved Booking Flow
 
-1. User selects train and date
+1. User selects train and date on **SearchTrains**
 2. Frontend fetches train with coaches and seats
-3. User selects seats (up to 6)
+3. User selects seats (up to 6) on **SeatBooking**
 4. User enters passenger details
-5. POST to `/api/bookings` creates:
+5. **MockRazorpayModal** opens — user selects payment method and confirms
+6. POST to `/api/payment/verify` finalises the booking:
    - Booking record with unique PNR
    - Passenger records linked to seats
-6. Seats availability is calculated dynamically per date
+   - `booking_status = confirmed`, `payment_status = paid`
+7. Seat availability is calculated dynamically per date
+
+### General Ticket Flow
+
+1. User clicks **"Book General Ticket"** on landing page
+2. **GenTicketSearch** — selects source, destination (today's date auto-set)
+3. Only trains with GEN coaches are listed
+4. **GenBooking** — selects passenger count; fare calculated from distance using 2024 IR GEN rates
+5. **MockRazorpayModal** — user completes payment
+6. POST to `/api/tickets/general` creates a general ticket (no seat assignment)
+
+### Cancellation Flow
+
+1. User opens **Profile** → sees all bookings
+2. **Cancel Ticket** available for non-GEN, non-cancelled, non-completed bookings
+3. `AlertDialog` shows preview: refund amount, cancellation charge, tier reason
+4. On confirm → POST to `/api/bookings/:id/cancel`
+5. Backend applies Indian Railways tiered refund rules:
+
+| Hours before departure | Cancellation Charge |
+|------------------------|--------------------|
+| > 48 hours | Flat ₹60 (SL) / ₹90 (AC) / ₹30 (CC/2S) per pax |
+| 12 – 48 hours | 25% of fare |
+| 4 – 12 hours | 50% of fare |
+| < 4 hours / post-departure | No refund |
+| GEN tickets | No cancellation |
+
+6. `booking_status` → `cancelled`, `payment_status` → `refunded` or `no_refund`
 
 ---
 
@@ -438,13 +544,15 @@ Each controller handles business logic for its domain:
 | duration | VARCHAR | Journey duration |
 | status | ENUM | 'active' or 'inactive' |
 
+> **Seed Data**: 20 real Indian Railways trains seeded with accurate rake compositions (1A/2A/3A/SL/CC/GEN) and 68 stations.
+
 #### coaches
 | Column | Type | Description |
 |--------|------|-------------|
 | coach_id | SERIAL | Primary key |
 | train_id | INTEGER | Foreign key to trains |
-| coach_number | VARCHAR | e.g., 'A1', 'S1', 'C1' |
-| coach_type | ENUM | 'sleeper', 'ac', 'chair' |
+| coach_number | VARCHAR | e.g., 'A1', 'S1', 'C1', 'G1' |
+| coach_type | ENUM | 'sleeper', 'ac', 'chair', 'general', '1a', '2a', '3a', 'cc' |
 | total_seats | INTEGER | Total seats in coach |
 
 #### seats
@@ -455,7 +563,7 @@ Each controller handles business logic for its domain:
 | seat_number | VARCHAR | e.g., '1', '2A', '3B' |
 | seat_type | ENUM | 'lower', 'middle', 'upper', etc. |
 | status | ENUM | 'available', 'selected', 'booked', 'locked' |
-| price | DECIMAL | Seat price |
+| price | DECIMAL | Seat price (2024 IR fare rules) |
 | row_number | INTEGER | Row position in coach |
 
 #### bookings
@@ -471,7 +579,9 @@ Each controller handles business logic for its domain:
 | travel_date | DATE | Date of travel |
 | total_amount | DECIMAL | Total booking amount |
 | booking_status | ENUM | 'pending', 'confirmed', 'cancelled' |
-| payment_status | ENUM | 'pending', 'paid', 'failed', 'refunded' |
+| payment_status | ENUM | 'pending', 'paid', 'failed', 'refunded', 'no_refund' |
+| refund_amount | DECIMAL | Amount refunded on cancellation |
+| cancellation_charge | DECIMAL | Cancellation fee deducted |
 
 #### passengers
 | Column | Type | Description |
@@ -498,6 +608,19 @@ Each controller handles business logic for its domain:
 | stop_order | INTEGER | Order of stop in route |
 | arrival_time | TIME | Arrival at stop |
 | departure_time | TIME | Departure from stop |
+
+### Indian Railways Fare Structure (2024)
+
+| Class | Express Base | Express /km | Superfast Base | Superfast /km | SF Surcharge |
+|-------|-------------|-------------|---------------|--------------|-------------|
+| SL | ₹105 | ₹0.52 | ₹115 | ₹0.55 | +₹30 |
+| 3A | ₹415 | ₹1.56 | ₹460 | ₹1.65 | +₹45 |
+| 2A | ₹600 | ₹2.00 | ₹665 | ₹2.10 | +₹45 |
+| 1A | ₹1,100 | ₹3.20 | ₹1,200 | ₹3.50 | +₹75 |
+| CC | ₹175 | ₹0.95 | ₹200 | ₹1.02 | +₹45 |
+| GEN | ₹30 | ₹0.30 | ₹35 | ₹0.33 | – |
+
+Reservation charges: SL ₹20 · 3A ₹40 · 2A ₹50 · 1A ₹60 · CC ₹30
 
 ---
 
